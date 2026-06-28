@@ -56,8 +56,10 @@ func main() {
 	px := proxy.New(reg, pool.New(db.Accounts()), doer)
 
 	srv := server.New(cfg.Addr(), server.Deps{
-		Proxy: px,
-		Route: routeModel,
+		Proxy:    px,
+		Route:    routeModel,
+		Registry: reg,
+		Accounts: db.Accounts(),
 	})
 
 	log.Printf("enx %s listening on %s", version, cfg.Addr())

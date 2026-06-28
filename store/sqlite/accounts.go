@@ -11,9 +11,9 @@ import (
 type accountStore struct{ db *sql.DB }
 
 func (s *accountStore) List(ctx context.Context, provider string) ([]store.Account, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, provider, label, secret, creds, status, created_at
-		 FROM accounts WHERE provider = ? ORDER BY id`, provider)
+	query := `SELECT id, provider, label, secret, creds, status, created_at
+		 FROM accounts WHERE (? = '' OR provider = ?) ORDER BY id`
+	rows, err := s.db.QueryContext(ctx, query, provider, provider)
 	if err != nil {
 		return nil, err
 	}

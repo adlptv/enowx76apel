@@ -73,3 +73,16 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"message": msg}})
 }
+
+// writeData wraps a payload in {"data": ...} for the /api client envelope.
+func writeData(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+}
+
+// writeAPIErr matches the {"error": "..."} shape the /api client reads.
+func writeAPIErr(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{"error": msg})
+}
