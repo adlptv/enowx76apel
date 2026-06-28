@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SystemStats } from "./SystemStats";
 
 export function TopBar() {
   const [clock, setClock] = useState("--:--");
@@ -11,7 +12,10 @@ export function TopBar() {
   return (
     <div className="glass absolute inset-x-0 top-0 z-[9999] flex h-7 items-center justify-between border-b border-white/5 bg-[var(--topbar-bg)] px-3 text-[11px] text-white/85">
       <span className="font-semibold tracking-wide">enowx</span>
-      <span className="tabular-nums text-white/70">{clock}</span>
+      <div className="flex items-center gap-3">
+        <SystemStats />
+        <span className="tabular-nums text-white/70">{clock}</span>
+      </div>
     </div>
   );
 }

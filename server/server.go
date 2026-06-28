@@ -38,6 +38,7 @@ func New(addr string, d Deps) *Server {
 	requests := handlers.NewRequests(d.Logs)
 	keys := handlers.NewKeys(d.Keys)
 	settings := handlers.NewSettings(d.Settings)
+	dbg := handlers.NewDebug(d.Settings.Version, d.Settings.Started)
 	auth := middleware.APIKeyAuth(d.Keys)
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -65,6 +66,7 @@ func New(addr string, d Deps) *Server {
 		r.Post("/keys", keys.Add)
 		r.Delete("/keys/{id}", keys.Delete)
 		r.Get("/settings", settings.Get)
+		r.Get("/debug", dbg.Get)
 	})
 
 	// WebOS SPA on the same port (everything not matched above).

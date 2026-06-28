@@ -123,3 +123,38 @@ export interface Settings {
 export const settingsApi = {
   get: () => api.get<Settings>("/api/settings"),
 };
+
+export interface DebugInfo {
+  process: { cpu_percent: number; rss: number; pid: number };
+  memory: {
+    heap_alloc: number;
+    heap_sys: number;
+    heap_objects: number;
+    stack_inuse: number;
+    sys: number;
+    total_alloc: number;
+    live_objects: number;
+  };
+  gc: {
+    num_gc: number;
+    gc_cpu_fraction: number;
+    last_gc: string;
+    next_gc_target: number;
+    pause_total_ns: number;
+  };
+  goroutines: number;
+  build: {
+    version: string;
+    go_version: string;
+    os: string;
+    arch: string;
+    num_cpu: number;
+    max_procs: number;
+  };
+  uptime_seconds: number;
+  now: string;
+}
+
+export const debugApi = {
+  get: () => api.get<DebugInfo>("/api/debug"),
+};
