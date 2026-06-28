@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "./shell";
 import { TermBars, TermGauge, TermBarRow } from "../components/term/TermChart";
+import { AreaChart } from "../components/term/AreaChart";
+import { useLiveSeries } from "../lib/useLiveSeries";
 import {
   requestsApi,
   type RequestSummary,
   type SeriesPoint,
   type ModelStat,
 } from "../lib/api";
+
+// Realtime req/s: poll the running total each second and chart the delta.
+async function readTotal(): Promise<number> {
+  const s = await requestsApi.summary();
+  return s.total;
+}
 
 const compact = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
@@ -31,6 +39,8 @@ export function StatisticsApp() {
     };
   }, []);
 
+  const live = useLiveSeries(readTotal, { intervalMs: 1000, capacity: 120 });
+  const rps = live.length ? live[live.length - 1].v : 0;
   const reqSeries = series.map((p) => p.requests);
   const tokSeries = series.map((p) => p.in_tokens + p.out_tokens);
   const okRate = summary && summary.total > 0 ? Math.round((summary.ok / summary.total) * 100) : 0;
@@ -42,6 +52,12 @@ export function StatisticsApp() {
   return (
     <AppShell title="Statistics" subtitle="Live usage — refreshes every 5s">
       <div className="space-y-3">
+        <Panel title="REQUESTS / SEC (LIVE)" hint={`${rps} req/s now`}>
+          <div className="h-56">
+            <AreaChart points={live} unit="req/s" />
+          </div>
+        </Panel>
+
         <Panel title="TOKEN USAGE / HOUR (24H)" hint={summary ? `${compact(summary.in_tokens)} in · ${compact(summary.out_tokens)} out today` : ""}>
           <TermBars values={tokSeries} height={9} />
         </Panel>
