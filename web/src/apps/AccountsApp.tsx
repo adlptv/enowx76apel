@@ -78,8 +78,8 @@ export function AccountsApp() {
     <AppShell title="Accounts" subtitle="The credential pool across providers">
       <div className="flex h-full flex-col">
         <div className="mb-3 flex items-center gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-            <Search className="h-4 w-4 text-white/30" />
+          <div className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3">
+            <Search className="h-4 w-4 shrink-0 text-white/30" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -91,7 +91,7 @@ export function AccountsApp() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             title="Filter by provider"
-            className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-xs text-white/80 focus:outline-none"
+            className="h-10 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs text-white/80 focus:outline-none"
           >
             <option value="all" className="bg-[#15161c]">
               All providers
@@ -103,8 +103,8 @@ export function AccountsApp() {
             ))}
           </select>
           <Tooltip label="Reload accounts" place="bottom">
-            <button onClick={load} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-white/50 hover:bg-white/10 hover:text-white">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <button onClick={load} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/10 hover:text-white">
+              <RefreshCw className="h-4 w-4" />
             </button>
           </Tooltip>
         </div>
@@ -125,38 +125,46 @@ export function AccountsApp() {
           ) : (
             <div className="space-y-2">
               {filtered.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <ProviderIcon icon={iconFor(a.provider)} label={a.provider} size={36} />
+                <div
+                  key={a.id}
+                  className="group flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
+                >
+                  <ProviderIcon icon={iconFor(a.provider)} label={a.provider} size={40} />
+
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-white">{a.label || `${a.provider} account`}</span>
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ring-1 ring-inset ${statusTone(a.status)}`}>
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset ${statusTone(a.status)}`}>
                         {a.status}
                       </span>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-white/35">
-                      <span>{a.provider}</span>
-                      <span>·</span>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/40">
+                      <span className="capitalize">{a.provider}</span>
+                      <span className="text-white/20">·</span>
                       <span>{a.created_at}</span>
-                      {a.has.length > 0 && (
-                        <>
-                          <span>·</span>
-                          <span className="truncate font-mono">{a.has.join(", ")}</span>
-                        </>
-                      )}
                     </div>
+                    {a.has.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {a.has.map((k) => (
+                          <span key={k} className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[9px] text-white/45">
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+
+                  <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
                     {a.status === "active" ? (
-                      <ActionBtn title="Ban" disabled={busy === a.id} onClick={() => setStatus(a, "banned")}>
+                      <ActionBtn title="Ban account" disabled={busy === a.id} onClick={() => setStatus(a, "banned")}>
                         <Ban className="h-3.5 w-3.5" />
                       </ActionBtn>
                     ) : (
-                      <ActionBtn title="Activate" disabled={busy === a.id} onClick={() => setStatus(a, "active")}>
+                      <ActionBtn title="Activate account" disabled={busy === a.id} onClick={() => setStatus(a, "active")}>
                         <CircleCheck className="h-3.5 w-3.5" />
                       </ActionBtn>
                     )}
-                    <ActionBtn title="Delete" danger disabled={busy === a.id} onClick={() => remove(a)}>
+                    <ActionBtn title="Delete account" danger disabled={busy === a.id} onClick={() => remove(a)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </ActionBtn>
                   </div>
