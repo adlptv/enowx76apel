@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Trash2, Ban, CircleCheck, RefreshCw } from "lucide-react";
+import { Search, Trash2, Power, PowerOff, RefreshCw } from "lucide-react";
 import { AppShell } from "./shell";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { Tooltip } from "../components/Tooltip";
@@ -84,7 +84,7 @@ export function AccountsApp() {
     if (!confirm(`Delete ${a.label || a.provider} account?`)) return;
     act(() => accountsApi.remove(a.id), a.id);
   };
-  const setStatus = (a: Account, status: string) => act(() => accountsApi.setStatus(a.id, status), a.id);
+  const setDisabled = (a: Account, disabled: boolean) => act(() => accountsApi.setDisabled(a.id, disabled), a.id);
 
   return (
     <AppShell title="Accounts" subtitle="The credential pool across providers">
@@ -145,10 +145,18 @@ export function AccountsApp() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-white">{a.label || `${a.provider} account`}</span>
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset ${statusTone(a.status)}`}>
-                        {a.status}
+                      <span className={`truncate text-sm font-medium ${a.disabled ? "text-white/45" : "text-white"}`}>
+                        {a.label || `${a.provider} account`}
                       </span>
+                      {a.disabled ? (
+                        <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/45 ring-1 ring-inset ring-white/15">
+                          disabled
+                        </span>
+                      ) : (
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ring-1 ring-inset ${statusTone(a.status)}`}>
+                          {a.status}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/40">
                       <span className="capitalize">{a.provider}</span>
@@ -165,13 +173,13 @@ export function AccountsApp() {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
-                    {a.status === "active" ? (
-                      <ActionBtn title="Ban account" disabled={busy === a.id} onClick={() => setStatus(a, "banned")}>
-                        <Ban className="h-3.5 w-3.5" />
+                    {a.disabled ? (
+                      <ActionBtn title="Enable account" disabled={busy === a.id} onClick={() => setDisabled(a, false)}>
+                        <Power className="h-3.5 w-3.5" />
                       </ActionBtn>
                     ) : (
-                      <ActionBtn title="Activate account" disabled={busy === a.id} onClick={() => setStatus(a, "active")}>
-                        <CircleCheck className="h-3.5 w-3.5" />
+                      <ActionBtn title="Disable account" disabled={busy === a.id} onClick={() => setDisabled(a, true)}>
+                        <PowerOff className="h-3.5 w-3.5" />
                       </ActionBtn>
                     )}
                     <ActionBtn title="Delete account" danger disabled={busy === a.id} onClick={() => remove(a)}>

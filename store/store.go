@@ -14,7 +14,8 @@ type Account struct {
 	Label     string
 	Secret    string            // single-token case (opaque here)
 	Creds     map[string]string // multi-field credentials (opaque here)
-	Status    string            // active | exhausted | banned
+	Status    string            // active | exhausted | banned (from upstream)
+	Disabled  bool              // turned off by the user (independent of status)
 	CreatedAt time.Time
 }
 
@@ -58,6 +59,7 @@ type AccountStore interface {
 	List(ctx context.Context, provider string) ([]Account, error)
 	Add(ctx context.Context, a Account) (int64, error)
 	SetStatus(ctx context.Context, id int64, status string) error
+	SetDisabled(ctx context.Context, id int64, disabled bool) error
 	UpdateCreds(ctx context.Context, id int64, creds map[string]string) error
 	Delete(ctx context.Context, id int64) error
 }

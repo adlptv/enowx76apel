@@ -30,6 +30,7 @@ export interface Account {
   provider: string;
   label: string;
   status: string;
+  disabled: boolean;
   has: string[];
   created_at: string;
 }
@@ -59,6 +60,8 @@ export const accountsApi = {
   add: (a: NewAccount) => api.post<{ id: number }>("/api/accounts", a),
   setStatus: (id: number, status: string) =>
     api.patch<{ ok: boolean }>(`/api/accounts/${id}/status`, { status }),
+  setDisabled: (id: number, disabled: boolean) =>
+    api.patch<{ ok: boolean }>(`/api/accounts/${id}/disabled`, { disabled }),
   remove: (id: number) => api.del<{ ok: boolean }>(`/api/accounts/${id}`),
   usage: (id: number) => api.get<{ supported: boolean; usage?: Usage }>(`/api/accounts/${id}/usage`),
 };

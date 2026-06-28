@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     secret     TEXT NOT NULL DEFAULT '',
     creds      TEXT NOT NULL DEFAULT '',
     status     TEXT NOT NULL DEFAULT 'active',
+    disabled   INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_provider ON accounts(provider, status);

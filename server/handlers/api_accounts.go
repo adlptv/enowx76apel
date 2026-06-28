@@ -21,6 +21,7 @@ type accountDTO struct {
 	Provider  string   `json:"provider"`
 	Label     string   `json:"label"`
 	Status    string   `json:"status"`
+	Disabled  bool     `json:"disabled"`
 	Has       []string `json:"has"` // credential keys present (never the values)
 	CreatedAt string   `json:"created_at"`
 }
@@ -38,6 +39,7 @@ func toDTO(a store.Account) accountDTO {
 		Provider:  a.Provider,
 		Label:     a.Label,
 		Status:    a.Status,
+		Disabled:  a.Disabled,
 		Has:       has,
 		CreatedAt: a.CreatedAt.Format("2006-01-02 15:04"),
 	}
@@ -106,6 +108,24 @@ func (h *Accounts) SetStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.SetStatus(r.Context(), id, in.Status); err != nil {
+		writeAPIErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeData(w, map[string]any{"ok": true})
+}
+
+func (h *Accounts) SetDisabled(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Disabled bool `json:"disabled"`
+	}
+	body, _ := io.ReadAll(r.Body)
+	_ = json.Unmarshal(body, &in)
+	if err := h.store.SetDisabled(r.Context(), id, in.Disabled); err != nil {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}

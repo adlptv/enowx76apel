@@ -11,7 +11,7 @@ import (
 type accountStore struct{ db *sql.DB }
 
 func (s *accountStore) List(ctx context.Context, provider string) ([]store.Account, error) {
-	query := `SELECT id, provider, label, secret, creds, status, created_at
+	query := `SELECT id, provider, label, secret, creds, status, disabled, created_at
 		 FROM accounts WHERE (? = '' OR provider = ?) ORDER BY id`
 	rows, err := s.db.QueryContext(ctx, query, provider, provider)
 	if err != nil {
@@ -22,7 +22,7 @@ func (s *accountStore) List(ctx context.Context, provider string) ([]store.Accou
 	for rows.Next() {
 		var a store.Account
 		var creds string
-		if err := rows.Scan(&a.ID, &a.Provider, &a.Label, &a.Secret, &creds, &a.Status, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Label, &a.Secret, &creds, &a.Status, &a.Disabled, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		a.Creds = decodeCreds(creds)
@@ -43,6 +43,11 @@ func (s *accountStore) Add(ctx context.Context, a store.Account) (int64, error) 
 
 func (s *accountStore) SetStatus(ctx context.Context, id int64, status string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET status = ? WHERE id = ?`, status, id)
+	return err
+}
+
+func (s *accountStore) SetDisabled(ctx context.Context, id int64, disabled bool) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET disabled = ? WHERE id = ?`, disabled, id)
 	return err
 }
 

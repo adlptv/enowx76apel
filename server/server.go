@@ -64,6 +64,7 @@ func New(addr string, d Deps) *Server {
 		r.Get("/accounts", accounts.List)
 		r.Post("/accounts", accounts.Add)
 		r.Patch("/accounts/{id}/status", accounts.SetStatus)
+		r.Patch("/accounts/{id}/disabled", accounts.SetDisabled)
 		r.Get("/accounts/{id}/usage", usage.Get)
 		r.Delete("/accounts/{id}", accounts.Delete)
 		r.Get("/requests", requests.List)
