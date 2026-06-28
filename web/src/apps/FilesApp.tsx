@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Folder, FileText, ArrowUp, Home, Plus, X } from "lucide-react";
 import { AppShell } from "./shell";
 import { filesApi, type DirListing } from "../lib/api";
-import { openFile, fileKind } from "../os/openFileBus";
+import { fileKind } from "../os/fileKind";
+import { FileViewer } from "./FileViewer";
 import { useFileTabs } from "./useFileTabs";
 
 const fmtSize = (n: number) =>
@@ -71,10 +72,17 @@ export function FilesApp() {
   );
 }
 
+interface Viewing {
+  path: string;
+  name: string;
+  kind: "text" | "image";
+}
+
 function FileBrowser({ path, onPath }: { path: string | null; onPath: (p: string | null) => void }) {
   const [dir, setDir] = useState<DirListing | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState<Viewing | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -92,6 +100,13 @@ function FileBrowser({ path, onPath }: { path: string | null; onPath: (p: string
       alive = false;
     };
   }, [path]);
+
+  // Navigating to another directory drops any open file view.
+  useEffect(() => setViewing(null), [path]);
+
+  if (viewing) {
+    return <FileViewer path={viewing.path} name={viewing.name} kind={viewing.kind} onBack={() => setViewing(null)} />;
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -122,7 +137,7 @@ function FileBrowser({ path, onPath }: { path: string | null; onPath: (p: string
                 return (
                   <button
                     key={e.name}
-                    onDoubleClick={() => (e.is_dir ? onPath(full) : openFile({ path: full, name: e.name, kind: fileKind(e.name) }))}
+                    onDoubleClick={() => (e.is_dir ? onPath(full) : setViewing({ path: full, name: e.name, kind: fileKind(e.name) }))}
                     className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/[0.04]"
                   >
                     {e.is_dir ? <Folder className="h-4 w-4 shrink-0 text-sky-300/80" /> : <FileText className="h-4 w-4 shrink-0 text-white/40" />}
