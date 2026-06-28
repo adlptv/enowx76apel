@@ -1,41 +1,42 @@
-import { useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { buildApps } from "../apps";
-import { Dock } from "./Dock";
-import { OsWindow } from "./OsWindow";
+import { SideDock } from "./SideDock";
+import { SidePanel } from "./SidePanel";
 import { TopBar } from "./TopBar";
 import { Widgets } from "./Widgets";
-import { useWindows } from "./useWindows";
+import { usePanels } from "./usePanels";
+import type { AppId, Side } from "./types";
 
 export function Desktop() {
-  const { windows, open, close, focus, openIds } = useWindows();
-  const bounds = useRef<HTMLDivElement>(null);
   const apps = buildApps();
+  const { active, toggle, close } = usePanels();
+
+  const leftApps = apps.filter((a) => a.side === "left");
+  const rightApps = apps.filter((a) => a.side === "right");
+  const find = (id: AppId | null) => apps.find((a) => a.id === id);
+
+  const renderPanel = (side: Side) => {
+    const app = find(active[side]);
+    return app ? <SidePanel side={side} app={app} onClose={() => close(side)} /> : null;
+  };
 
   return (
     <div className="wallpaper fixed inset-0 select-none overflow-hidden">
-      <div ref={bounds} className="pointer-events-none absolute inset-x-0 top-7 bottom-20" />
-      <div className="pointer-events-none absolute inset-x-0 top-7 bottom-20">
-        <Widgets onOpen={open} />
+      <div className="pointer-events-none absolute inset-x-0 top-7 bottom-3">
+        <Widgets onOpen={(id) => toggle(panelSide(apps, id), id)} />
       </div>
+
       <TopBar />
-      <AnimatePresence>
-        {windows.map((win) => {
-          const app = apps.find((a) => a.id === win.appId);
-          if (!app) return null;
-          return (
-            <OsWindow
-              key={win.id}
-              win={win}
-              app={app}
-              boundsRef={bounds}
-              onClose={() => close(win.id)}
-              onFocus={() => focus(win.id)}
-            />
-          );
-        })}
-      </AnimatePresence>
-      <Dock apps={apps} openIds={openIds} onOpen={open} />
+
+      <SideDock side="left" apps={leftApps} activeId={active.left} onOpen={toggle} />
+      <SideDock side="right" apps={rightApps} activeId={active.right} onOpen={toggle} />
+
+      <AnimatePresence>{renderPanel("left")}</AnimatePresence>
+      <AnimatePresence>{renderPanel("right")}</AnimatePresence>
     </div>
   );
+}
+
+function panelSide(apps: ReturnType<typeof buildApps>, id: AppId): Side {
+  return apps.find((a) => a.id === id)?.side ?? "left";
 }

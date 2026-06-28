@@ -5,11 +5,12 @@ import { RequestsApp } from "./RequestsApp";
 import { ProvidersApp } from "./ProvidersApp";
 import { SettingsApp } from "./SettingsApp";
 
+// Left dock = sources/config, right dock = observation/system.
 export function buildApps(): DesktopApp[] {
   return [
-    { id: "accounts", label: "Accounts", icon: <KeyRound />, accent: "from-violet-500 to-fuchsia-600", render: () => <AccountsApp />, width: 720, height: 560 },
-    { id: "requests", label: "Requests", icon: <ScrollText />, accent: "from-sky-500 to-indigo-600", render: () => <RequestsApp />, width: 860, height: 560 },
-    { id: "providers", label: "Providers", icon: <Boxes />, accent: "from-emerald-500 to-teal-600", render: () => <ProvidersApp />, width: 720, height: 540 },
-    { id: "settings", label: "Settings", icon: <Settings />, accent: "from-slate-500 to-slate-700", render: () => <SettingsApp />, width: 640, height: 520 },
+    { id: "providers", label: "Providers", icon: <Boxes />, accent: "from-emerald-500 to-teal-600", side: "left", render: () => <ProvidersApp /> },
+    { id: "accounts", label: "Accounts", icon: <KeyRound />, accent: "from-violet-500 to-fuchsia-600", side: "left", render: () => <AccountsApp /> },
+    { id: "requests", label: "Requests", icon: <ScrollText />, accent: "from-sky-500 to-indigo-600", side: "right", render: () => <RequestsApp /> },
+    { id: "settings", label: "Settings", icon: <Settings />, accent: "from-slate-500 to-slate-700", side: "right", render: () => <SettingsApp /> },
   ];
 }
