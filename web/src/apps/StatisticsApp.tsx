@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "./shell";
-import { TermBars, TermGauge, TermBarRow } from "../components/term/TermChart";
+import { TermGauge, TermBarRow } from "../components/term/TermChart";
 import { AreaChart } from "../components/term/AreaChart";
 import { useLiveSeries } from "../lib/useLiveSeries";
 import {
   requestsApi,
   type RequestSummary,
-  type SeriesPoint,
   type ModelStat,
 } from "../lib/api";
 
-// Realtime req/s: poll the running total each second and chart the delta.
-async function readTotal(): Promise<number> {
+// Realtime counters: poll the running totals each second and chart the delta.
+async function readReqTotal(): Promise<number> {
   const s = await requestsApi.summary();
   return s.total;
+}
+async function readTokTotal(): Promise<number> {
+  const s = await requestsApi.summary();
+  return s.in_tokens + s.out_tokens;
 }
 
 const compact = (n: number) =>
@@ -21,14 +24,12 @@ const compact = (n: number) =>
 
 export function StatisticsApp() {
   const [summary, setSummary] = useState<RequestSummary | null>(null);
-  const [series, setSeries] = useState<SeriesPoint[]>([]);
   const [models, setModels] = useState<ModelStat[]>([]);
 
   useEffect(() => {
     let alive = true;
     const load = () => {
       requestsApi.summary().then((s) => alive && setSummary(s)).catch(() => {});
-      requestsApi.series().then((s) => alive && setSeries(s ?? [])).catch(() => {});
       requestsApi.topModels(8).then((m) => alive && setModels(m ?? [])).catch(() => {});
     };
     load();
@@ -39,10 +40,10 @@ export function StatisticsApp() {
     };
   }, []);
 
-  const live = useLiveSeries(readTotal, { intervalMs: 1000, capacity: 120 });
-  const rps = live.length ? live[live.length - 1].v : 0;
-  const reqSeries = series.map((p) => p.requests);
-  const tokSeries = series.map((p) => p.in_tokens + p.out_tokens);
+  const reqLive = useLiveSeries(readReqTotal, { intervalMs: 1000, capacity: 120 });
+  const tokLive = useLiveSeries(readTokTotal, { intervalMs: 1000, capacity: 120 });
+  const rps = reqLive.length ? reqLive[reqLive.length - 1].v : 0;
+  const tps = tokLive.length ? tokLive[tokLive.length - 1].v : 0;
   const okRate = summary && summary.total > 0 ? Math.round((summary.ok / summary.total) * 100) : 0;
   const errRate = summary && summary.total > 0 ? Math.round((summary.errors / summary.total) * 100) : 0;
   const maxModel = Math.max(...models.map((m) => m.requests), 1);
@@ -50,20 +51,18 @@ export function StatisticsApp() {
   const latPct = summary ? Math.min(100, Math.round((summary.avg_ms / 2000) * 100)) : 0;
 
   return (
-    <AppShell title="Statistics" subtitle="Live usage — refreshes every 5s">
+    <AppShell title="Statistics" subtitle="Live usage — realtime">
       <div className="space-y-3">
         <Panel title="REQUESTS / SEC (LIVE)" hint={`${rps} req/s now`}>
           <div className="h-56">
-            <AreaChart points={live} unit="req/s" />
+            <AreaChart points={reqLive} unit="req/s" />
           </div>
         </Panel>
 
-        <Panel title="TOKEN USAGE / HOUR (24H)" hint={summary ? `${compact(summary.in_tokens)} in · ${compact(summary.out_tokens)} out today` : ""}>
-          <TermBars values={tokSeries} height={9} />
-        </Panel>
-
-        <Panel title="REQUESTS / HOUR (24H)" hint={`${reqSeries.reduce((a, b) => a + b, 0)} total`}>
-          <TermBars values={reqSeries} height={7} />
+        <Panel title="TOKENS / SEC (LIVE)" hint={`${compact(tps)} tok/s now`}>
+          <div className="h-56">
+            <AreaChart points={tokLive} unit="tok/s" />
+          </div>
         </Panel>
 
         <Panel title="HEALTH">
