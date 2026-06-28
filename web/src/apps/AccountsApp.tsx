@@ -3,7 +3,7 @@ import { Search, Trash2, Ban, CircleCheck, RefreshCw } from "lucide-react";
 import { AppShell } from "./shell";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { Tooltip } from "../components/Tooltip";
-import { accountsApi, providersApi, type Account, type Provider } from "../lib/api";
+import { accountsApi, providersApi, type Account, type Provider, type Usage } from "../lib/api";
 
 const STATUS_TONE: Record<string, string> = {
   active: "text-emerald-300 bg-emerald-500/10 ring-emerald-500/30",
@@ -22,6 +22,7 @@ export function AccountsApp() {
   const [filter, setFilter] = useState<string>("all");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
+  const [usage, setUsage] = useState<Record<number, Usage>>({});
 
   async function load() {
     try {
@@ -29,6 +30,17 @@ export function AccountsApp() {
       setAccounts(a ?? []);
       setProviders(p ?? []);
       setError("");
+      // Lazily fetch credit usage for accounts whose provider supports it.
+      for (const acc of a ?? []) {
+        accountsApi
+          .usage(acc.id)
+          .then((r) => {
+            if (r.supported && r.usage && r.usage.limit > 0) {
+              setUsage((m) => ({ ...m, [acc.id]: r.usage! }));
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "failed to load");
       setAccounts([]);
@@ -142,16 +154,14 @@ export function AccountsApp() {
                       <span className="capitalize">{a.provider}</span>
                       <span className="text-white/20">·</span>
                       <span>{a.created_at}</span>
+                      {usage[a.id]?.plan && (
+                        <>
+                          <span className="text-white/20">·</span>
+                          <span className="capitalize">{usage[a.id].plan}</span>
+                        </>
+                      )}
                     </div>
-                    {a.has.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {a.has.map((k) => (
-                          <span key={k} className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[9px] text-white/45">
-                            {k}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {usage[a.id] && <CreditMeter u={usage[a.id]} />}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
@@ -175,6 +185,27 @@ export function AccountsApp() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+const fmtCredit = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : `${Math.round(n)}`;
+
+function CreditMeter({ u }: { u: Usage }) {
+  const pct = u.limit > 0 ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
+  const tone = pct >= 90 ? "bg-red-400" : pct >= 70 ? "bg-amber-400" : "bg-emerald-400";
+  return (
+    <div className="mt-2 max-w-[220px]">
+      <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
+        <span>credit</span>
+        <span className="tabular-nums">
+          {fmtCredit(u.used)} / {fmtCredit(u.limit)}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 

@@ -1,35 +1,65 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Place = "top" | "bottom" | "left" | "right";
 
-const POS: Record<Place, string> = {
-  top: "bottom-full left-1/2 mb-1.5 -translate-x-1/2",
-  bottom: "top-full left-1/2 mt-1.5 -translate-x-1/2",
-  left: "right-full top-1/2 mr-1.5 -translate-y-1/2",
-  right: "left-full top-1/2 ml-1.5 -translate-y-1/2",
-};
-
-// Tooltip shows a glass label on hover/focus. Every interactive control should
+// Tooltip shows a glass label on hover/focus. It renders into document.body so
+// it is never clipped by a panel's overflow. Every interactive control should
 // explain itself — see AGENTS.md "Buttons must explain themselves".
 export function Tooltip({ label, place = "top", children }: { label: string; place?: Place; children: ReactNode }) {
-  const [show, setShow] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  const show = () => {
+    const el = ref.current?.firstElementChild ?? ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const gap = 6;
+    switch (place) {
+      case "bottom":
+        setPos({ x: r.left + r.width / 2, y: r.bottom + gap });
+        break;
+      case "left":
+        setPos({ x: r.left - gap, y: r.top + r.height / 2 });
+        break;
+      case "right":
+        setPos({ x: r.right + gap, y: r.top + r.height / 2 });
+        break;
+      default:
+        setPos({ x: r.left + r.width / 2, y: r.top - gap });
+    }
+  };
+
+  const transform =
+    place === "top"
+      ? "translate(-50%, -100%)"
+      : place === "bottom"
+        ? "translate(-50%, 0)"
+        : place === "left"
+          ? "translate(-100%, -50%)"
+          : "translate(0, -50%)";
+
   return (
     <span
-      className="relative inline-flex"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-      onFocusCapture={() => setShow(true)}
-      onBlurCapture={() => setShow(false)}
+      ref={ref}
+      className="inline-flex"
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+      onFocusCapture={show}
+      onBlurCapture={() => setPos(null)}
     >
       {children}
-      {show && (
-        <span
-          role="tooltip"
-          className={`pointer-events-none absolute z-[10000] whitespace-nowrap rounded-md bg-black/85 px-2 py-0.5 text-[11px] font-medium text-white ring-1 ring-white/10 ${POS[place]}`}
-        >
-          {label}
-        </span>
-      )}
+      {pos &&
+        createPortal(
+          <span
+            role="tooltip"
+            style={{ position: "fixed", left: pos.x, top: pos.y, transform }}
+            className="pointer-events-none z-[10000] whitespace-nowrap rounded-md bg-black/85 px-2 py-0.5 text-[11px] font-medium text-white ring-1 ring-white/10 shadow-lg"
+          >
+            {label}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

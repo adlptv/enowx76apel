@@ -52,3 +52,18 @@ type Provider interface {
 	ParseResponse(*http.Response, *model.Request) (model.Stream, error)
 	Classify(status int, body []byte) Outcome
 }
+
+// Usage is an account's credit/quota snapshot. Limit==0 means "no quota data".
+type Usage struct {
+	Limit     float64 `json:"limit"`
+	Used      float64 `json:"used"`
+	Remaining float64 `json:"remaining"`
+	Plan      string  `json:"plan,omitempty"`
+	Message   string  `json:"message,omitempty"`
+}
+
+// UsageReporter is an optional capability: providers that can report an
+// account's credit/quota implement it. The server type-asserts for it.
+type UsageReporter interface {
+	Usage(acc Account) (*Usage, error)
+}

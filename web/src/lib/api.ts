@@ -45,6 +45,14 @@ export const providersApi = {
   list: () => api.get<Provider[]>("/api/providers"),
 };
 
+export interface Usage {
+  limit: number;
+  used: number;
+  remaining: number;
+  plan?: string;
+  message?: string;
+}
+
 export const accountsApi = {
   list: (provider?: string) =>
     api.get<Account[]>(`/api/accounts${provider ? `?provider=${encodeURIComponent(provider)}` : ""}`),
@@ -52,6 +60,7 @@ export const accountsApi = {
   setStatus: (id: number, status: string) =>
     api.patch<{ ok: boolean }>(`/api/accounts/${id}/status`, { status }),
   remove: (id: number) => api.del<{ ok: boolean }>(`/api/accounts/${id}`),
+  usage: (id: number) => api.get<{ supported: boolean; usage?: Usage }>(`/api/accounts/${id}/usage`),
 };
 
 export interface AwsStart {
