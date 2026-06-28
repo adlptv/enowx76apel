@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,10 +21,11 @@ type Warmup struct {
 	proxy *proxy.Proxy
 	reg   *provider.Registry
 	store store.AccountStore
+	logs  store.WarmupStore
 }
 
-func NewWarmup(p *proxy.Proxy, reg *provider.Registry, s store.AccountStore) *Warmup {
-	return &Warmup{proxy: p, reg: reg, store: s}
+func NewWarmup(p *proxy.Proxy, reg *provider.Registry, s store.AccountStore, logs store.WarmupStore) *Warmup {
+	return &Warmup{proxy: p, reg: reg, store: s, logs: logs}
 }
 
 // warmupModel is the cheap model used to probe each provider.
@@ -58,29 +60,48 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 	pacc := provider.Account{ID: acc.ID, Secret: acc.Secret, Creds: acc.Creds}
 	req := warmupRequest(acc.Provider)
 
-	outcome, probeErr := h.proxy.Probe(r.Context(), acc.Provider, pacc, req)
-	status := statusFromOutcome(outcome)
+	start := time.Now()
+	res := h.proxy.Probe(r.Context(), acc.Provider, pacc, req)
+	durMS := time.Since(start).Milliseconds()
+	status := statusFromOutcome(res.Outcome)
 	_ = h.store.SetStatus(r.Context(), acc.ID, status)
 
 	resp := map[string]any{
-		"ok":     outcome == provider.OutcomeOK,
+		"ok":     res.Outcome == provider.OutcomeOK,
 		"status": status,
 	}
-	if probeErr != nil && outcome != provider.OutcomeOK {
-		resp["error"] = probeErr.Error()
+	if res.Err != nil && res.Outcome != provider.OutcomeOK {
+		resp["error"] = res.Err.Error()
 	}
 
 	// Credit usage when the provider supports it.
+	var usageJSON string
 	if prov, err := h.reg.Get(acc.Provider); err == nil {
 		if reporter, ok := prov.(provider.UsageReporter); ok {
 			resp["usage_supported"] = true
 			if u, err := reporter.Usage(pacc); err == nil {
 				resp["usage"] = u
+				if b, e := json.Marshal(u); e == nil {
+					usageJSON = string(b)
+				}
 			}
 		} else {
 			resp["usage_supported"] = false
 		}
 	}
+
+	_ = h.logs.Insert(r.Context(), store.WarmupLog{
+		AccountID:  acc.ID,
+		Provider:   acc.Provider,
+		Label:      acc.Label,
+		OK:         res.Outcome == provider.OutcomeOK,
+		Outcome:    outcomeName(res.Outcome),
+		Status:     status,
+		Request:    string(req.Raw),
+		Response:   res.Response,
+		Usage:      usageJSON,
+		DurationMS: durMS,
+	})
 
 	writeData(w, resp)
 }
@@ -96,6 +117,47 @@ func statusFromOutcome(o provider.Outcome) string {
 	default:
 		return "active" // transient: leave usable
 	}
+}
+
+func outcomeName(o provider.Outcome) string {
+	switch o {
+	case provider.OutcomeOK:
+		return "ok"
+	case provider.OutcomeExhausted:
+		return "exhausted"
+	case provider.OutcomeDead:
+		return "dead"
+	default:
+		return "transient"
+	}
+}
+
+// List returns recent warmup log entries for the Warmup Logs app.
+func (h *Warmup) List(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	rows, err := h.logs.Recent(r.Context(), limit)
+	if err != nil {
+		writeAPIErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, l := range rows {
+		out = append(out, map[string]any{
+			"id":          l.ID,
+			"account_id":  l.AccountID,
+			"provider":    l.Provider,
+			"label":       l.Label,
+			"ok":          l.OK,
+			"outcome":     l.Outcome,
+			"status":      l.Status,
+			"request":     l.Request,
+			"response":    l.Response,
+			"usage":       l.Usage,
+			"duration_ms": l.DurationMS,
+			"created_at":  l.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+	writeData(w, out)
 }
 
 // warmupRequest builds a minimal "reply with hi" probe usable by both

@@ -61,6 +61,7 @@ func main() {
 		Accounts: db.Accounts(),
 		Logs:     db.Logs(),
 		Keys:     db.Keys(),
+		Warmups:  db.Warmups(),
 		Doer:     doer,
 		Settings: handlers.SettingsInfo{
 			Version:    version,

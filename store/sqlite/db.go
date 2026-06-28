@@ -17,10 +17,11 @@ import (
 var migrations embed.FS
 
 type DB struct {
-	db   *sql.DB
-	acct *accountStore
-	logs *logStore
-	keys *keyStore
+	db      *sql.DB
+	acct    *accountStore
+	logs    *logStore
+	keys    *keyStore
+	warmups *warmupStore
 }
 
 func Open(path string) (*DB, error) {
@@ -36,12 +37,14 @@ func Open(path string) (*DB, error) {
 	d.acct = &accountStore{db: db}
 	d.logs = &logStore{db: db}
 	d.keys = &keyStore{db: db}
+	d.warmups = &warmupStore{db: db}
 	return d, nil
 }
 
 func (d *DB) Accounts() store.AccountStore { return d.acct }
 func (d *DB) Logs() store.LogStore         { return d.logs }
 func (d *DB) Keys() store.KeyStore         { return d.keys }
+func (d *DB) Warmups() store.WarmupStore   { return d.warmups }
 func (d *DB) Close() error                 { return d.db.Close() }
 
 func migrate(db *sql.DB) error {

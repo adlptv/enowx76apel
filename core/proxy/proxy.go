@@ -52,40 +52,57 @@ func (p *Proxy) Forward(ctx context.Context, providerName string, req *model.Req
 	return prov.ParseResponse(resp, req)
 }
 
+// ProbeResult captures what a warmup probe sent and got back.
+type ProbeResult struct {
+	Outcome  provider.Outcome
+	Status   int    // HTTP status (0 if the request never completed)
+	Response string // a short reply sample, or the error body
+	Err      error
+}
+
 // Probe runs one request against a SPECIFIC account (not the pool) and returns
-// the classified outcome — used by warmup to verify an account is alive. It
-// drains a small amount of the success stream so the upstream call completes.
-func (p *Proxy) Probe(ctx context.Context, providerName string, acc provider.Account, req *model.Request) (provider.Outcome, error) {
+// the classified outcome plus a response/error summary — used by warmup to
+// verify an account is alive. It drains a small amount of the success stream.
+func (p *Proxy) Probe(ctx context.Context, providerName string, acc provider.Account, req *model.Request) ProbeResult {
 	prov, err := p.reg.Get(providerName)
 	if err != nil {
-		return provider.OutcomeDead, err
+		return ProbeResult{Outcome: provider.OutcomeDead, Err: err}
 	}
 	hreq, err := prov.BuildRequest(req, acc)
 	if err != nil {
-		return provider.OutcomeDead, err
+		return ProbeResult{Outcome: provider.OutcomeDead, Err: err}
 	}
 	resp, err := p.doer.Do(hreq.WithContext(ctx))
 	if err != nil {
-		return provider.OutcomeTransient, fmt.Errorf("upstream: %w", err)
+		return ProbeResult{Outcome: provider.OutcomeTransient, Err: fmt.Errorf("upstream: %w", err), Response: err.Error()}
 	}
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return prov.Classify(resp.StatusCode, body), fmt.Errorf("upstream %d: %s", resp.StatusCode, truncate(body, 300))
+		return ProbeResult{
+			Outcome:  prov.Classify(resp.StatusCode, body),
+			Status:   resp.StatusCode,
+			Response: truncate(body, 1000),
+			Err:      fmt.Errorf("upstream %d", resp.StatusCode),
+		}
 	}
-	// Success: drain the stream briefly so the request actually flows.
+	// Success: drain the stream briefly, collecting a short reply sample.
 	stream, err := prov.ParseResponse(resp, req)
 	if err != nil {
-		return provider.OutcomeTransient, err
+		return ProbeResult{Outcome: provider.OutcomeTransient, Status: resp.StatusCode, Err: err}
 	}
 	defer stream.Close()
+	var sample []byte
 	for range 64 {
 		ev, err := stream.Recv()
 		if err != nil || ev.Type == model.EventDone || ev.Type == model.EventError {
 			break
 		}
+		if len(sample) < 500 {
+			sample = append(sample, ev.Text...)
+		}
 	}
-	return provider.OutcomeOK, nil
+	return ProbeResult{Outcome: provider.OutcomeOK, Status: resp.StatusCode, Response: string(sample)}
 }
 
 func (p *Proxy) handleErr(ctx context.Context, prov provider.Provider, acc provider.Account, resp *http.Response) error {

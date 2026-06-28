@@ -40,11 +40,33 @@ type APIKey struct {
 	LastUsed  *time.Time
 }
 
+// WarmupLog records one account warmup attempt (a real probe request).
+type WarmupLog struct {
+	ID         int64
+	AccountID  int64
+	Provider   string
+	Label      string
+	OK         bool
+	Outcome    string
+	Status     string
+	Request    string
+	Response   string
+	Usage      string
+	DurationMS int64
+	CreatedAt  time.Time
+}
+
 type Store interface {
 	Accounts() AccountStore
 	Logs() LogStore
 	Keys() KeyStore
+	Warmups() WarmupStore
 	Close() error
+}
+
+type WarmupStore interface {
+	Insert(ctx context.Context, l WarmupLog) error
+	Recent(ctx context.Context, limit int) ([]WarmupLog, error)
 }
 
 type KeyStore interface {

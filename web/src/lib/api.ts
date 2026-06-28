@@ -192,6 +192,25 @@ export const keysApi = {
   remove: (id: number) => api.del<{ ok: boolean }>(`/api/keys/${id}`),
 };
 
+export interface WarmupLog {
+  id: number;
+  account_id: number;
+  provider: string;
+  label: string;
+  ok: boolean;
+  outcome: string;
+  status: string;
+  request: string;
+  response: string;
+  usage: string;
+  duration_ms: number;
+  created_at: string;
+}
+
+export const warmupLogsApi = {
+  list: (limit = 100) => api.get<WarmupLog[]>(`/api/warmup-logs?limit=${limit}`),
+};
+
 export interface Settings {
   version: string;
   host: string;

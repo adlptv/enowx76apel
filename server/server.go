@@ -27,6 +27,7 @@ type Deps struct {
 	Accounts store.AccountStore
 	Logs     store.LogStore
 	Keys     store.KeyStore
+	Warmups  store.WarmupStore
 	Doer     transport.Doer
 	Settings handlers.SettingsInfo
 }
@@ -44,7 +45,7 @@ func New(addr string, d Deps) *Server {
 	kiro := handlers.NewKiro(d.Doer, d.Accounts)
 	local := handlers.NewLocal(d.Accounts)
 	usage := handlers.NewUsage(d.Registry, d.Accounts)
-	warmup := handlers.NewWarmup(d.Proxy, d.Registry, d.Accounts)
+	warmup := handlers.NewWarmup(d.Proxy, d.Registry, d.Accounts, d.Warmups)
 	term := handlers.NewTerminal()
 	files := handlers.NewFiles()
 	auth := middleware.APIKeyAuth(d.Keys)
@@ -68,6 +69,7 @@ func New(addr string, d Deps) *Server {
 		r.Patch("/accounts/{id}/disabled", accounts.SetDisabled)
 		r.Get("/accounts/{id}/usage", usage.Get)
 		r.Post("/accounts/{id}/warmup", warmup.Run)
+		r.Get("/warmup-logs", warmup.List)
 		r.Delete("/accounts/{id}", accounts.Delete)
 		r.Get("/requests", requests.List)
 		r.Get("/requests/summary", requests.Summary)
