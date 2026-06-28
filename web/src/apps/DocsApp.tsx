@@ -16,6 +16,7 @@ function methodTone(m: string) {
 export function DocsApp() {
   const [docs, setDocs] = useState<Docs | null>(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState("overview");
 
   useEffect(() => {
     docsApi
@@ -23,6 +24,11 @@ export function DocsApp() {
       .then(setDocs)
       .catch((e) => setError(e instanceof Error ? e.message : "failed to load"));
   }, []);
+
+  const tabs = docs
+    ? [{ id: "overview", label: "Overview" }, { id: "plugins", label: "Plugins" }, ...docs.groups.map((g) => ({ id: g.name, label: g.name }))]
+    : [];
+  const activeGroup = docs?.groups.find((g) => g.name === tab);
 
   return (
     <AppShell title="Docs" subtitle="API reference for integrations & plugins">
@@ -34,20 +40,36 @@ export function DocsApp() {
           ))}
         </div>
       ) : (
-        <div className="space-y-5">
-          <Overview docs={docs} />
-          <Plugins docs={docs} />
-          {docs.groups.map((g) => (
-            <section key={g.name}>
-              <h2 className="text-sm font-semibold text-white">{g.name}</h2>
-              <p className="mb-2 text-[11px] text-white/40">{g.desc}</p>
-              <div className="space-y-2">
-                {g.endpoints.map((e) => (
-                  <Endpoint key={e.method + e.path} e={e} />
-                ))}
-              </div>
-            </section>
-          ))}
+        <div className="flex h-full flex-col">
+          {/* Top navigation: Overview · Plugins · one tab per endpoint group. */}
+          <div className="term-tabs -mx-1 mb-3 flex shrink-0 gap-1 overflow-x-auto px-1 pb-1">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  tab === t.id ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {tab === "overview" && <Overview docs={docs} />}
+            {tab === "plugins" && <Plugins docs={docs} />}
+            {activeGroup && (
+              <section>
+                <p className="mb-2 text-[11px] text-white/40">{activeGroup.desc}</p>
+                <div className="space-y-2">
+                  {activeGroup.endpoints.map((e) => (
+                    <Endpoint key={e.method + e.path} e={e} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
         </div>
       )}
     </AppShell>
