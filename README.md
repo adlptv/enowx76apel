@@ -11,14 +11,23 @@ account pool on one port.
 
 ## Installation
 
-### Install script (Linux and macOS)
+### Install script
+
+Linux and macOS:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/enowdev/enowx/main/install.sh | sh
 ```
 
-This downloads the latest release for your platform, verifies its checksum, and
-installs the `enx` binary to `/usr/local/bin`. Override the location with
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/enowdev/enowx/main/install.ps1 | iex
+```
+
+The installer downloads the latest release for your OS/arch, verifies its
+checksum, and installs the `enx` binary (to `/usr/local/bin` on Unix, or
+`%LOCALAPPDATA%\Programs\enx` on Windows). Override the location with
 `ENX_INSTALL_DIR`, or pin a version with `ENX_VERSION=vX.Y.Z`.
 
 ### Download a release binary
@@ -115,13 +124,24 @@ formats are normalized per provider. Current providers:
 
 ## Development
 
+Linux and macOS:
+
 ```sh
 ./dev.sh
 ```
 
-This runs the backend and frontend on one port (`http://localhost:1430`) with
-hot reload and no build step. The Go server proxies the SPA and its hot-reload
-channel to an internal Vite dev server.
+Windows (PowerShell):
+
+```powershell
+./dev.ps1
+```
+
+This installs dependencies if needed, then runs the backend and frontend on one
+port (`http://localhost:1430`) with hot reload and no build step. The Go server
+proxies the SPA and its hot-reload channel to an internal Vite dev server.
+
+The built-in terminal uses a PTY and currently works on Linux and macOS; on
+Windows the rest of the app runs but the terminal is disabled.
 
 ## Community and support
 

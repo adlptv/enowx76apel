@@ -11,6 +11,12 @@ export ENOWX_VITE_PORT="${ENOWX_VITE_PORT:-5174}"
 
 command -v air >/dev/null 2>&1 || { echo "installing air…"; go install github.com/air-verse/air@latest; }
 
+# Install frontend deps if missing (or if package.json changed since last install).
+if [ ! -d web/node_modules ] || [ web/package.json -nt web/node_modules ]; then
+  echo "installing web deps…"
+  ( cd web && npm install )
+fi
+
 cleanup() { kill 0 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Trash2, Ban, CircleCheck, RefreshCw } from "lucide-react";
 import { AppShell } from "./shell";
 import { ProviderIcon } from "../components/ProviderIcon";
+import { Tooltip } from "../components/Tooltip";
 import { accountsApi, providersApi, type Account, type Provider } from "../lib/api";
 
 const STATUS_TONE: Record<string, string> = {
@@ -73,40 +74,40 @@ export function AccountsApp() {
   };
   const setStatus = (a: Account, status: string) => act(() => accountsApi.setStatus(a.id, status), a.id);
 
-  const filterTabs = ["all", ...Object.keys(counts)];
-
   return (
     <AppShell title="Accounts" subtitle="The credential pool across providers">
       <div className="flex h-full flex-col">
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-          <Search className="h-4 w-4 text-white/30" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search accounts…"
-            className="w-full bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
-          />
-          <button onClick={load} title="Refresh" className="rounded-md p-1 text-white/40 hover:bg-white/10 hover:text-white">
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        {filterTabs.length > 1 && (
-          <div className="mb-3 flex flex-wrap gap-1">
-            {filterTabs.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`rounded-md px-2.5 py-1 text-[11px] capitalize transition-colors ${
-                  filter === f ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/80"
-                }`}
-              >
-                {f}
-                {f !== "all" && <span className="ml-1 text-white/30">{counts[f]}</span>}
-              </button>
-            ))}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+            <Search className="h-4 w-4 text-white/30" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search accounts…"
+              className="w-full bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
+            />
           </div>
-        )}
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            title="Filter by provider"
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 text-xs text-white/80 focus:outline-none"
+          >
+            <option value="all" className="bg-[#15161c]">
+              All providers
+            </option>
+            {Object.keys(counts).map((p) => (
+              <option key={p} value={p} className="bg-[#15161c]">
+                {p} ({counts[p]})
+              </option>
+            ))}
+          </select>
+          <Tooltip label="Reload accounts" place="bottom">
+            <button onClick={load} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-white/50 hover:bg-white/10 hover:text-white">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+        </div>
 
         {error && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</div>}
 
@@ -183,15 +184,16 @@ function ActionBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 transition-colors disabled:opacity-40 ${
-        danger ? "hover:bg-red-500/30 hover:text-red-200" : "hover:bg-white/10 hover:text-white"
-      }`}
-    >
-      {children}
-    </button>
+    <Tooltip label={title}>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 transition-colors disabled:opacity-40 ${
+          danger ? "hover:bg-red-500/30 hover:text-red-200" : "hover:bg-white/10 hover:text-white"
+        }`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }

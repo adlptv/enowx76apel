@@ -7,11 +7,26 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/coder/websocket"
 	"github.com/creack/pty"
 )
+
+// defaultShell picks the user's interactive shell per OS.
+func defaultShell() string {
+	if runtime.GOOS == "windows" {
+		if ps, err := exec.LookPath("powershell.exe"); err == nil {
+			return ps
+		}
+		return "cmd.exe"
+	}
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
+	}
+	return "/bin/bash"
+}
 
 // Terminal serves a real PTY shell over a WebSocket. It is gated to loopback
 // clients only — a shell reachable from the network would be a takeover risk.
@@ -38,11 +53,7 @@ func (h *Terminal) WS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close(websocket.StatusNormalClosure, "")
 
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/bash"
-	}
-	cmd := exec.Command(shell, "-l")
+	cmd := exec.Command(defaultShell())
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	if home, err := os.UserHomeDir(); err == nil {
 		cmd.Dir = home
