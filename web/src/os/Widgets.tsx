@@ -137,6 +137,9 @@ function CommunityWidget() {
   );
 }
 
+// Widget is a card container. It is a <div> (not a <button>) so interactive
+// children — create/copy/delete buttons — work; only the header acts as the
+// "open app" affordance when onOpen is provided.
 function Widget({
   icon,
   title,
@@ -149,19 +152,16 @@ function Widget({
   children: ReactNode;
 }) {
   return (
-    <button
-      onClick={onOpen}
-      disabled={!onOpen}
-      className={`glass flex flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left shadow-xl transition-colors ${
-        onOpen ? "hover:bg-white/[0.07]" : "cursor-default"
-      }`}
-    >
-      <div className="mb-3 flex items-center gap-2 text-white/70">
+    <div className="glass flex flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left shadow-xl">
+      <div
+        onClick={onOpen}
+        className={`mb-3 flex items-center gap-2 text-white/70 ${onOpen ? "cursor-pointer hover:text-white" : ""}`}
+      >
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
         <span className="text-xs font-semibold uppercase tracking-wide">{title}</span>
       </div>
       {children}
-    </button>
+    </div>
   );
 }
 
@@ -231,13 +231,17 @@ function ApiKeyWidget({
   onOpen: (id: AppId) => void;
 }) {
   const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState("");
 
   const create = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setCreating(true);
+    setErr("");
     try {
       await keysApi.add();
       onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "failed to create key");
     } finally {
       setCreating(false);
     }
@@ -251,12 +255,15 @@ function ApiKeyWidget({
         <p className="mb-3 text-sm text-white/40">
           No gateway key. Create one to require auth on /v1 and /anthropic.
         </p>
-        <div
+        <button
+          type="button"
           onClick={create}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
+          disabled={creating}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 disabled:opacity-50"
         >
           <Plus className="h-3.5 w-3.5" /> {creating ? "Creating..." : "Create API key"}
-        </div>
+        </button>
+        {err && <p className="mt-2 text-[11px] text-red-300">{err}</p>}
       </Widget>
     );
   }
@@ -268,12 +275,15 @@ function ApiKeyWidget({
           <KeyRow key={k.id} apiKey={k} onChanged={onChanged} />
         ))}
       </div>
-      <div
+      <button
+        type="button"
         onClick={create}
-        className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
+        disabled={creating}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 disabled:opacity-50"
       >
         <Plus className="h-3.5 w-3.5" /> {creating ? "Creating..." : "New key"}
-      </div>
+      </button>
+      {err && <p className="mt-2 text-[11px] text-red-300">{err}</p>}
     </Widget>
   );
 }
