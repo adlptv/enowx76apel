@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { LayoutGrid, SquareTerminal } from "lucide-react";
+import { LayoutGrid, SquareTerminal, BookOpen } from "lucide-react";
 import { buildApps } from "../apps";
 import { SideDock } from "./SideDock";
 import { SidePanel } from "./SidePanel";
@@ -8,13 +8,14 @@ import { TopBar } from "./TopBar";
 import { Widgets } from "./Widgets";
 import { CenterTerminal } from "./CenterTerminal";
 import { TerminalLayer } from "./TerminalLayer";
+import { DocsApp } from "../apps/DocsApp";
 import { usePanels } from "./usePanels";
 import { usePersisted } from "./usePersisted";
 import { useSides } from "./useSides";
 import { useTerminals, type TermLocation } from "./useTerminals";
 import type { AppId, Side } from "./types";
 
-type CenterView = "widget" | "terminal";
+type CenterView = "widget" | "terminal" | "docs";
 
 export function Desktop() {
   const apps = buildApps();
@@ -75,6 +76,9 @@ export function Desktop() {
             <div className={`absolute inset-0 ${view === "terminal" ? "" : "hidden"}`}>
               <CenterTerminal term={term} setHost={setCenterHost} />
             </div>
+            <div className={`absolute inset-0 overflow-hidden rounded-2xl border border-white/10 bg-[var(--window-bg)]/80 ${view === "docs" ? "" : "hidden"}`}>
+              <DocsApp />
+            </div>
           </div>
           <CenterNav view={view} onView={setView} />
         </div>
@@ -119,6 +123,7 @@ function CenterNav({ view, onView }: { view: CenterView; onView: (v: CenterView)
   const tabs: { id: CenterView; label: string; icon: typeof LayoutGrid }[] = [
     { id: "widget", label: "Widget", icon: LayoutGrid },
     { id: "terminal", label: "Terminal", icon: SquareTerminal },
+    { id: "docs", label: "Docs", icon: BookOpen },
   ];
   return (
     <div className="mt-3 flex shrink-0 justify-center">
