@@ -42,6 +42,7 @@ func New(addr string, d Deps) *Server {
 	settings := handlers.NewSettings(d.Settings)
 	dbg := handlers.NewDebug(d.Settings.Version, d.Settings.Started)
 	kiro := handlers.NewKiro(d.Doer, d.Accounts)
+	local := handlers.NewLocal(d.Accounts)
 	auth := middleware.APIKeyAuth(d.Keys)
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -77,6 +78,9 @@ func New(addr string, d Deps) *Server {
 		r.Get("/accounts/kiro/aws/poll", kiro.AWSPoll)
 		r.Post("/accounts/kiro/oauth/start", kiro.OAuthStart)
 		r.Post("/accounts/kiro/oauth/exchange", kiro.OAuthExchange)
+
+		r.Get("/local-sources", local.Scan)
+		r.Post("/local-sources/import", local.Import)
 	})
 
 	// WebOS SPA on the same port (everything not matched above).

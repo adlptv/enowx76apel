@@ -78,6 +78,18 @@ export const kiroApi = {
     api.post<{ id: number }>("/api/accounts/kiro/oauth/exchange", { session, code }),
 };
 
+export interface LocalSource {
+  provider: string;
+  target: string;
+  path: string;
+}
+
+export const localApi = {
+  scan: () => api.get<LocalSource[]>("/api/local-sources"),
+  import: (provider: string, target: string) =>
+    api.post<{ id: number }>("/api/local-sources/import", { provider, target }),
+};
+
 export interface RequestSummary {
   total: number;
   ok: number;

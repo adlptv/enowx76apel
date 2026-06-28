@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ExternalLink, Copy, Check } from "lucide-react";
+import { X, ExternalLink, Copy, Check, RefreshCw, Download } from "lucide-react";
 import { ProviderIcon } from "./ProviderIcon";
-import { kiroApi, type AwsStart, type Provider } from "../lib/api";
+import { kiroApi, localApi, type AwsStart, type LocalSource, type Provider } from "../lib/api";
 
-type Tab = "oauth" | "aws" | "manual" | "refresh";
+type Tab = "local" | "oauth" | "aws" | "manual" | "refresh";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "local", label: "From IDE/CLI" },
   { id: "oauth", label: "OAuth" },
   { id: "aws", label: "AWS" },
   { id: "manual", label: "Manual" },
@@ -21,7 +22,7 @@ export function KiroAddModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("oauth");
+  const [tab, setTab] = useState<Tab>("local");
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -55,6 +56,7 @@ export function KiroAddModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto p-4">
+          {tab === "local" && <LocalTab onSaved={onSaved} />}
           {tab === "oauth" && <OAuthTab onSaved={onSaved} />}
           {tab === "aws" && <AwsTab onSaved={onSaved} />}
           {tab === "manual" && <ManualTab onSaved={onSaved} />}
@@ -79,6 +81,79 @@ function PrimaryBtn({ onClick, disabled, children }: { onClick: () => void; disa
     >
       {children}
     </button>
+  );
+}
+
+function LocalTab({ onSaved }: { onSaved: () => void }) {
+  const [sources, setSources] = useState<LocalSource[] | null>(null);
+  const [err, setErr] = useState("");
+  const [importing, setImporting] = useState("");
+
+  const scan = async () => {
+    setErr("");
+    setSources(null);
+    try {
+      const s = await localApi.scan();
+      setSources((s ?? []).filter((x) => x.provider === "kiro"));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "scan failed");
+      setSources([]);
+    }
+  };
+
+  useEffect(() => {
+    scan();
+  }, []);
+
+  const doImport = async (s: LocalSource) => {
+    setErr("");
+    setImporting(s.target);
+    try {
+      await localApi.import(s.provider, s.target);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "import failed");
+    } finally {
+      setImporting("");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-white/50">Detected from Kiro logged in on this machine.</p>
+        <button onClick={scan} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/60 hover:bg-white/5 hover:text-white">
+          <RefreshCw className="h-3 w-3" /> Rescan
+        </button>
+      </div>
+
+      {sources === null ? (
+        <div className="h-16 animate-pulse rounded-lg bg-white/5" />
+      ) : sources.length === 0 ? (
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-center text-xs text-white/40">
+          No Kiro credentials found. Log in to Kiro Desktop or CLI, then Rescan — or use another tab.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sources.map((s) => (
+            <div key={s.target} className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{s.target}</p>
+                <p className="truncate font-mono text-[10px] text-white/35">{s.path}</p>
+              </div>
+              <button
+                onClick={() => doImport(s)}
+                disabled={!!importing}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90 disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" /> {importing === s.target ? "Importing..." : "Import"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Err msg={err} />
+    </div>
   );
 }
 
