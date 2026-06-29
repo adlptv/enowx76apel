@@ -15,8 +15,8 @@ export function TopBarNowPlaying() {
   const pct = m.duration > 0 ? (m.position / m.duration) * 100 : 0;
 
   return (
-    <div className="relative flex min-w-0 max-w-[340px] flex-1 items-center justify-center">
-      <div className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-white/5">
+    <div className="pointer-events-none absolute left-1/2 top-0 z-[1] flex h-7 -translate-x-1/2 items-center">
+      <div className="pointer-events-auto relative flex min-w-0 max-w-[360px] items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-white/5">
         <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-sm bg-white/10">
           {track.thumbnail ? (
             <img src={track.thumbnail} alt="" className="h-full w-full object-cover" />
@@ -53,9 +53,9 @@ export function TopBarNowPlaying() {
             </button>
           </Tooltip>
         </div>
-      </div>
 
-      {open && <NowPlayingPopover pct={pct} onClose={() => setOpen(false)} />}
+        {open && <NowPlayingPopover pct={pct} onClose={() => setOpen(false)} />}
+      </div>
     </div>
   );
 }
