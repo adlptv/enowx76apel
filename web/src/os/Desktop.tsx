@@ -9,7 +9,6 @@ import { Widgets } from "./Widgets";
 import { CenterTerminal } from "./CenterTerminal";
 import { TerminalLayer } from "./TerminalLayer";
 import { AppsDrawer } from "./AppsDrawer";
-import { MiniPlayer } from "./MiniPlayer";
 import { Tooltip } from "../components/Tooltip";
 import { DocsApp } from "../apps/DocsApp";
 import { usePanels } from "./usePanels";
@@ -161,8 +160,6 @@ export function Desktop() {
       <AnimatePresence>{renderPanel("right")}</AnimatePresence>
 
       <TerminalLayer terms={term.terms} activeCenter={term.activeCenter} hosts={hosts} />
-
-      <MiniPlayer />
     </div>
   );
 }

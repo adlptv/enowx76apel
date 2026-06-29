@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { SystemStats } from "./SystemStats";
+import { TopBarNowPlaying } from "./TopBarNowPlaying";
 
 export function TopBar({ nav }: { nav?: ReactNode }) {
   const [clock, setClock] = useState("--:--");
@@ -18,7 +19,8 @@ export function TopBar({ nav }: { nav?: ReactNode }) {
     <div className="glass absolute inset-x-0 top-0 z-[9999] flex h-7 items-center gap-3 border-b border-white/5 bg-[var(--topbar-bg)] px-3 text-[11px] text-white/85">
       <span className="shrink-0 font-semibold tracking-wide">enowx</span>
       {nav}
-      <div className="ml-auto flex items-center gap-3">
+      <TopBarNowPlaying />
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         <SystemStats />
         <span className="tabular-nums text-white/70">{clock}</span>
       </div>
