@@ -114,6 +114,19 @@ type ArtistCount struct {
 	Plays  int
 }
 
+// SyncedPlaylist is a playlist expressed as a sync item: identified by its
+// stable share code, carrying the LWW metadata + full track list (or a
+// tombstone when Deleted).
+type SyncedPlaylist struct {
+	ShareCode   string       `json:"share_code"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Tracks      []MusicTrack `json:"tracks"`
+	UpdatedAt   int64        `json:"updated_at"` // unix millis
+	Version     int64        `json:"version"`
+	Deleted     bool         `json:"deleted"`
+}
+
 // MusicStore persists playlists and play history locally (no external account).
 type MusicStore interface {
 	// Playlists
@@ -124,6 +137,12 @@ type MusicStore interface {
 	DeletePlaylist(ctx context.Context, id int64) error
 	AddTrack(ctx context.Context, playlistID int64, t MusicTrack) error
 	RemoveTrack(ctx context.Context, playlistID int64, videoID string) error
+
+	// Sync (two-way, LWW by UpdatedAt). PlaylistsForSync returns every playlist
+	// as a sync item including tombstones. ApplySyncedPlaylist upserts a remote
+	// item (the syncer has already decided it wins).
+	PlaylistsForSync(ctx context.Context) ([]SyncedPlaylist, error)
+	ApplySyncedPlaylist(ctx context.Context, p SyncedPlaylist) error
 
 	// History (feeds the local "for you" recommendations)
 	RecordPlay(ctx context.Context, e PlayEvent) error

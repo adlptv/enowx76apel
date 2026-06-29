@@ -87,6 +87,7 @@ var shortcutGroups = []shortcutGroup{
 			{Keys: "Ctrl/Alt + K", Desc: "API Keys"},
 			{Keys: "Ctrl/Alt + M", Desc: "Music"},
 			{Keys: "Ctrl/Alt + T", Desc: "Tunnel"},
+			{Keys: "Ctrl/Alt + C", Desc: "Sync"},
 		},
 	},
 }
@@ -167,6 +168,17 @@ var groups = []docGroup{
 		Endpoints: []docEndpoint{
 			{Method: "GET", Path: "/api/warmup-logs", Desc: "Recent warmup entries (request, response, usage).", Params: []docParam{{Name: "limit", In: "query", Desc: "max rows"}}},
 			{Method: "DELETE", Path: "/api/warmup-logs", Desc: "Clear all warmup logs."},
+		},
+	},
+	{
+		Name: "Cloud sync",
+		Desc: "Two-way sync of local data to the enowxlabs cloud, gated by Discord login. Pilot data type: playlists. The enowx client talks to the cloud server; these endpoints drive it.",
+		Endpoints: []docEndpoint{
+			{Method: "GET", Path: "/api/sync/status", Desc: "Sync state: configured, enabled, server URL, and cached user (identity/plan)."},
+			{Method: "POST", Path: "/api/sync/login", Desc: "Begin Discord login; returns an authorize URL to open + a state to poll.", Params: []docParam{{Name: "server_url", In: "body", Desc: "cloud base URL (optional if already set)"}}},
+			{Method: "GET", Path: "/api/sync/login/poll", Desc: "Poll for login completion; stores the sync token when done.", Params: []docParam{{Name: "state", In: "query", Desc: "state from login"}}},
+			{Method: "POST", Path: "/api/sync/logout", Desc: "Drop the sync token and disable sync."},
+			{Method: "POST", Path: "/api/sync/now", Desc: "Run a one-off reconcile; returns counts pushed/pulled."},
 		},
 	},
 	{

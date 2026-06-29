@@ -9,6 +9,7 @@ import (
 
 	"github.com/enowdev/enowx/core/provider"
 	"github.com/enowdev/enowx/core/proxy"
+	syncpkg "github.com/enowdev/enowx/core/sync"
 	"github.com/enowdev/enowx/core/transport"
 	"github.com/enowdev/enowx/core/tunnel"
 	"github.com/enowdev/enowx/server/handlers"
@@ -32,6 +33,7 @@ type Deps struct {
 	Music      store.MusicStore
 	SettingsKV store.SettingsStore
 	Tunnel     *tunnel.Manager
+	Sync       *syncpkg.Manager
 	Doer       transport.Doer
 	Settings   handlers.SettingsInfo
 }
@@ -56,6 +58,7 @@ func New(addr string, d Deps) *Server {
 	files := handlers.NewFiles(dash)
 	music := handlers.NewMusic(d.Music)
 	tun := handlers.NewTunnel(d.Tunnel, d.Keys)
+	syncH := handlers.NewSync(d.Sync)
 	authH := handlers.NewAuth(dash)
 	auth := middleware.NewAuth(d.Keys)
 
@@ -112,6 +115,12 @@ func New(addr string, d Deps) *Server {
 		r.Post("/auth/login", authH.Login)
 		r.Post("/auth/logout", authH.Logout)
 		r.Post("/auth/change", authH.Change)
+
+		r.Get("/sync/status", syncH.Status)
+		r.Post("/sync/login", syncH.LoginStart)
+		r.Get("/sync/login/poll", syncH.LoginPoll)
+		r.Post("/sync/logout", syncH.Logout)
+		r.Post("/sync/now", syncH.Now)
 
 		r.Get("/tunnel/status", tun.Status)
 		r.Post("/tunnel/enable", tun.Enable)

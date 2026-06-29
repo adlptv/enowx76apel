@@ -274,6 +274,31 @@ export const docsApi = {
   get: () => api.get<Docs>("/api/docs"),
 };
 
+export interface SyncUser {
+  discord_id: string;
+  username: string;
+  avatar_url: string;
+  roles: string[];
+  plan: string;
+}
+
+export interface SyncStatus {
+  configured: boolean;
+  enabled: boolean;
+  server_url: string;
+  user: SyncUser | null;
+}
+
+export const syncApi = {
+  status: () => api.get<SyncStatus>("/api/sync/status"),
+  loginStart: (server_url?: string) =>
+    api.post<{ authorize_url: string; state: string }>("/api/sync/login", { server_url }),
+  loginPoll: (state: string) =>
+    api.get<{ done: boolean; user: SyncUser | null }>(`/api/sync/login/poll?state=${encodeURIComponent(state)}`),
+  logout: () => api.post<{ ok: boolean }>("/api/sync/logout"),
+  now: () => api.post<{ pushed: number; pulled: number }>("/api/sync/now"),
+};
+
 export interface AuthStatus {
   password_set: boolean;
   loopback: boolean;

@@ -88,6 +88,16 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	// Playlist sync columns (LWW): unix-millis updated_at, version, tombstone.
+	for _, c := range []struct{ name, decl string }{
+		{"sync_updated_at", "INTEGER NOT NULL DEFAULT 0"},
+		{"sync_version", "INTEGER NOT NULL DEFAULT 0"},
+		{"deleted", "INTEGER NOT NULL DEFAULT 0"},
+	} {
+		if err := ensureColumn(db, "playlists", c.name, c.decl); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

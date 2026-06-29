@@ -10,7 +10,8 @@ export type AppId =
   | "warmup-logs"
   | "api-keys"
   | "music"
-  | "tunnel";
+  | "tunnel"
+  | "sync";
 
 export type Side = "left" | "right";
 

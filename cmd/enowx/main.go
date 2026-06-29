@@ -13,6 +13,7 @@ import (
 	"github.com/enowdev/enowx/core/provider/codebuddy"
 	"github.com/enowdev/enowx/core/provider/kiro"
 	"github.com/enowdev/enowx/core/proxy"
+	syncpkg "github.com/enowdev/enowx/core/sync"
 	"github.com/enowdev/enowx/core/transport"
 	"github.com/enowdev/enowx/core/tunnel"
 	"github.com/enowdev/enowx/server"
@@ -55,6 +56,9 @@ func main() {
 
 	px := proxy.New(reg, pool.New(db.Accounts()), doer)
 	tun := tunnel.New(cfg.RuntimeDir, cfg.Port)
+	syncMgr := syncpkg.New(db.Settings(), db.Music())
+	// Maintain the live channel to the cloud server (no-op until logged in).
+	go syncMgr.RunLive(context.Background(), nil)
 
 	srv := server.New(cfg.Addr(), server.Deps{
 		Proxy:      px,
@@ -67,6 +71,7 @@ func main() {
 		Music:      db.Music(),
 		SettingsKV: db.Settings(),
 		Tunnel:     tun,
+		Sync:       syncMgr,
 		Doer:       doer,
 		Settings: handlers.SettingsInfo{
 			Version:    version,
