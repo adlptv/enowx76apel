@@ -16,5 +16,10 @@ export default defineConfig({
     port: vitePort,
     strictPort: true,
     hmr: { clientPort: publicPort },
+    // Dev only: the Go server proxies here and may forward a foreign Host header
+    // (e.g. reaching the dev UI through a public tunnel), which Vite's
+    // anti-DNS-rebinding guard would otherwise block. Production serves the
+    // embedded build directly from the Go server, so this never applies there.
+    allowedHosts: true,
   },
 });
