@@ -254,6 +254,24 @@ func (m *Manager) ChatSend(ctx context.Context, body json.RawMessage) (string, e
 	return string(raw), nil
 }
 
+// ChatEdit edits the caller's own chat message.
+func (m *Manager) ChatEdit(ctx context.Context, id string, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPatch, "/chat/messages/"+id, body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// ChatDelete deletes the caller's own chat message.
+func (m *Manager) ChatDelete(ctx context.Context, id string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodDelete, "/chat/messages/"+id, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // --- protocol types (must match the enowxlabs server) ---
 
 type item struct {

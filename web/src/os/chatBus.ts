@@ -45,13 +45,21 @@ function ensureStream() {
   };
   es.onmessage = (e) => {
     try {
-      const ev = JSON.parse(e.data) as { event: string; data: ChatMessage };
+      const ev = JSON.parse(e.data) as { event: string; data: any };
       if (ev.event === "chat_message" && ev.data) {
         // De-dupe (our own sent message may also arrive via broadcast).
         if (!messages.some((m) => m.id === ev.data.id)) {
-          messages = [...messages, ev.data];
+          messages = [...messages, ev.data as ChatMessage];
           emit();
         }
+      } else if (ev.event === "message_edited" && ev.data) {
+        messages = messages.map((m) =>
+          m.id === ev.data.id ? { ...m, content: ev.data.content, edited_at: ev.data.edited_at } : m,
+        );
+        emit();
+      } else if (ev.event === "message_deleted" && ev.data) {
+        messages = messages.filter((m) => m.id !== ev.data.id);
+        emit();
       }
     } catch {
       /* ignore malformed frames */
@@ -59,13 +67,26 @@ function ensureStream() {
   };
 }
 
-export async function sendChat(content: string) {
-  const msg = await chatApi.send(content);
+export async function sendChat(content: string, replyTo?: number) {
+  const msg = await chatApi.send(content, replyTo);
   // Optimistically append (broadcast de-dupes by id).
   if (msg && !messages.some((m) => m.id === msg.id)) {
     messages = [...messages, msg];
     emit();
   }
+}
+
+export async function editChat(id: number, content: string) {
+  await chatApi.edit(id, content);
+  // Apply locally now; the broadcast will reconcile other clients.
+  messages = messages.map((m) => (m.id === id ? { ...m, content, edited_at: new Date().toISOString() } : m));
+  emit();
+}
+
+export async function deleteChat(id: number) {
+  await chatApi.remove(id);
+  messages = messages.filter((m) => m.id !== id);
+  emit();
 }
 
 export interface ChatState {

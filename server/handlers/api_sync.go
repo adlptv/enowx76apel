@@ -147,6 +147,37 @@ func (h *Sync) ChatSend(w http.ResponseWriter, r *http.Request) {
 	writeData(w, out)
 }
 
+// ChatEdit proxies editing the caller's own chat message.
+func (h *Sync) ChatEdit(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 8192))
+	raw, err := h.mgr.ChatEdit(r.Context(), id, body)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
+// ChatDelete proxies deleting the caller's own chat message.
+func (h *Sync) ChatDelete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	raw, err := h.mgr.ChatDelete(r.Context(), id)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
 // ChatStream is a Server-Sent Events stream relaying live cloud events (chat
 // messages, announcements) to the browser.
 func (h *Sync) ChatStream(w http.ResponseWriter, r *http.Request) {

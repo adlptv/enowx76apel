@@ -24,7 +24,7 @@ export interface CardProfile {
 // ProfileCard is the Discord-style profile card: grey banner, large avatar
 // overlapping it, name + handle, badges row, and an About section (bio, links,
 // member-since). Used as the Profile-app hero and (later) as a popover.
-export function ProfileCard({ p, footer }: { p: CardProfile; footer?: React.ReactNode }) {
+export function ProfileCard({ p, footer, compact }: { p: CardProfile; footer?: React.ReactNode; compact?: boolean }) {
   const initial = (p.display_name || p.username || "?").charAt(0).toUpperCase();
   // Like Discord: the card BODY is themed by a Primary→Accent gradient; the
   // banner is a separate element that defaults to grey (image/gif banner is a
@@ -42,9 +42,9 @@ export function ProfileCard({ p, footer }: { p: CardProfile; footer?: React.Reac
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10">
-      {/* Banner — wide, grey by default; holds an image/gif when set (the latter
-          is a future role-gated perk). Tall enough for a real banner ratio. */}
-      <div className="h-40 w-full bg-white/[0.06]">
+      {/* Banner — grey by default; holds an image/gif when set (a future
+          role-gated perk). Shorter in compact mode (e.g. a popover). */}
+      <div className={`${compact ? "h-24" : "h-40"} w-full bg-white/[0.06]`}>
         {p.banner_url && <img src={p.banner_url} alt="" className="h-full w-full object-cover" />}
       </div>
 

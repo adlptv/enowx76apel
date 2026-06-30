@@ -1,13 +1,25 @@
 import type { ReactNode } from "react";
 
-export function AppShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+// `flush` makes the content area fill the window with no padding/scroll of its
+// own — for apps that manage their own full-height layout (e.g. chat).
+export function AppShell({
+  title,
+  subtitle,
+  children,
+  flush,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  flush?: boolean;
+}) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-white/5 px-4 py-2.5">
         <h1 className="text-sm font-bold text-white">{title}</h1>
         {subtitle && <p className="text-[11px] text-white/40">{subtitle}</p>}
       </div>
-      <div className="flex-1 overflow-auto p-4">{children}</div>
+      <div className={flush ? "min-h-0 flex-1" : "flex-1 overflow-auto p-4"}>{children}</div>
     </div>
   );
 }

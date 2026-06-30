@@ -327,6 +327,10 @@ export interface ChatMessage {
   user_id: string;
   content: string;
   created_at: string;
+  edited_at?: string | null;
+  reply_to?: number | null;
+  reply_content?: string;
+  reply_author?: string;
   username: string;
   display_name?: string;
   avatar_url?: string;
@@ -337,7 +341,9 @@ export interface ChatMessage {
 
 export const chatApi = {
   list: (before?: number) => api.get<{ messages: ChatMessage[] }>(`/api/chat/messages${before ? `?before=${before}` : ""}`),
-  send: (content: string) => api.post<ChatMessage>("/api/chat/messages", { content }),
+  send: (content: string, reply_to?: number) => api.post<ChatMessage>("/api/chat/messages", { content, reply_to: reply_to ?? null }),
+  edit: (id: number, content: string) => api.patch<{ id: number; content: string }>(`/api/chat/messages/${id}`, { content }),
+  remove: (id: number) => api.del<{ deleted: number }>(`/api/chat/messages/${id}`),
 };
 
 // PublicProfile is what other members can see (social data only — no secrets).
