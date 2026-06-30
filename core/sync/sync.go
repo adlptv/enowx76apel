@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -78,10 +79,12 @@ func (m *Manager) Logout(ctx context.Context) error {
 	return m.settings.Set(ctx, keyEnabled, "0")
 }
 
-// ServerURL returns the configured override or the built-in default.
-func (m *Manager) ServerURL(ctx context.Context) string {
-	if v := m.get(ctx, keyServerURL); v != "" {
-		return v
+// ServerURL returns the built-in default, overridable only via the
+// ENOWX_SYNC_SERVER env var (for development). A previously-persisted value is
+// intentionally ignored so the endpoint can't get stuck on a stale URL.
+func (m *Manager) ServerURL(_ context.Context) string {
+	if v := os.Getenv("ENOWX_SYNC_SERVER"); v != "" {
+		return strings.TrimRight(v, "/")
 	}
 	return DefaultServerURL
 }
@@ -90,16 +93,9 @@ func (m *Manager) UserJSON(ctx context.Context) string { return m.get(ctx, keyUs
 // --- Discord login (device-code style against enowxlabs) ---
 
 // LoginStart asks the server for a Discord authorize URL. The caller opens it;
-// the user authorizes; then LoginPoll retrieves the token.
-func (m *Manager) LoginStart(ctx context.Context, serverURL string) (authorizeURL, state string, err error) {
-	if serverURL != "" {
-		if err := m.SetServer(ctx, serverURL); err != nil {
-			return "", "", err
-		}
-	}
-	if m.ServerURL(ctx) == "" {
-		return "", "", fmt.Errorf("sync server URL not set")
-	}
+// the user authorizes; then LoginPoll retrieves the token. The server URL is
+// built in (see ServerURL); the argument is ignored.
+func (m *Manager) LoginStart(ctx context.Context, _ string) (authorizeURL, state string, err error) {
 	var resp struct {
 		AuthorizeURL string `json:"authorize_url"`
 		State        string `json:"state"`
