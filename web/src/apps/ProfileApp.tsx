@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Coins, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { AppShell } from "./shell";
 import { Tooltip } from "../components/Tooltip";
 import { useProfile } from "../os/useProfile";
 import { ProfileEditor } from "./ProfileEditor";
-import { type SyncUser } from "../lib/api";
+import { ProfileCard } from "../components/ProfileCard";
 
 // ProfileApp is the account surface: sign in with Discord to unlock features
 // (sync runs automatically in the background once signed in). No server URL to
@@ -71,61 +71,22 @@ export function ProfileApp() {
 
       {profile.loggedIn && profile.user ? (
         <div className="space-y-4">
-          {/* Identity card */}
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-            {profile.user.avatar_url ? (
-              <img src={profile.user.avatar_url} alt="" className="h-12 w-12 rounded-full" />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/40 to-violet-600/40 text-lg font-bold text-white">
-                {(profile.user.username || "?").charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-1.5">
-                <span className="truncate text-sm font-semibold text-white">
-                  {profile.user.display_name || profile.user.username || "Signed in"}
-                </span>
-                {profile.user.display_name && (
-                  <span className="truncate text-[11px] text-white/35">@{profile.user.username}</span>
-                )}
-              </div>
-              {profile.user.bio && <p className="mt-0.5 truncate text-[11px] text-white/55">{profile.user.bio}</p>}
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <RoleBadge user={profile.user} />
-                {profile.user.wears_tag && <TagBadge tag={profile.user.guild_tag} />}
-                <span className="text-[11px] text-white/40">via Discord</span>
-              </div>
-            </div>
+          {/* Discord-style profile card (reused for public profiles too). */}
+          <ProfileCard p={profile.user} />
+
+          <div className="flex items-center justify-between gap-2">
+            <ProfileEditor />
+            <span className="text-[11px] text-white/35">via Discord</span>
           </div>
 
-          <ProfileEditor />
-
-          {/* What login unlocks */}
+          {/* Account notes */}
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
             <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/40">
               <Sparkles className="h-3 w-3" /> Account
             </div>
             <p className="text-xs leading-relaxed text-white/55">
-              Your playlists sync automatically across signed-in devices. More account-gated features will appear here.
+              Your playlists sync automatically across signed-in devices.
             </p>
-            <Tooltip
-              label="Kleos — your reputation, earned by using enowx (more usage = more Kleos). Spend it on profile cosmetics & unlocks."
-              place="top"
-              maxWidth={240}
-              block
-            >
-              <div className="mt-3 flex w-full cursor-help items-center justify-between gap-2 rounded-lg border border-amber-400/15 bg-amber-400/[0.04] px-3 py-2">
-                <span className="flex items-center gap-1.5 text-[11px] font-medium leading-none text-amber-100/80">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 shadow-sm shadow-amber-500/30">
-                    <Coins className="h-2.5 w-2.5 text-amber-950" />
-                  </span>
-                  Kleos
-                </span>
-                <span className="font-mono text-xs font-semibold leading-none text-amber-200">
-                  {(profile.user.kleos ?? 0).toLocaleString()}
-                </span>
-              </div>
-            </Tooltip>
             {!profile.user.wears_tag && (
               <p className="mt-2 text-[11px] leading-relaxed text-white/40">
                 Wear the <span className="font-semibold text-white/60">[enow]</span> server tag on Discord to unlock
@@ -172,49 +133,5 @@ export function ProfileApp() {
         </div>
       )}
     </AppShell>
-  );
-}
-
-// TagBadge shows that the user is actively wearing the server's Discord tag.
-function TagBadge({ tag }: { tag?: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-200 ring-1 ring-inset ring-indigo-400/20">
-      <ShieldCheck className="h-3 w-3" /> {tag ? `[${tag}]` : "Tag"}
-    </span>
-  );
-}
-
-// hex turns a Discord decimal color into #rrggbb.
-function hex(n: number): string {
-  return "#" + (n & 0xffffff).toString(16).padStart(6, "0");
-}
-
-// RoleBadge shows the user's top Discord role with its icon + gradient color,
-// falling back to the plan name when no role detail is available.
-function RoleBadge({ user }: { user: SyncUser }) {
-  const tr = user.top_role;
-  if (!tr || !tr.name) {
-    return (
-      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
-        {user.plan}
-      </span>
-    );
-  }
-  const c1 = hex(tr.primary || tr.color);
-  const c2 = tr.secondary ? hex(tr.secondary) : c1;
-  const gradient = `linear-gradient(90deg, ${c1}, ${c2})`;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/10"
-      style={{ background: `${c1}22` }}
-    >
-      {tr.icon_url && <img src={tr.icon_url} alt="" className="h-3.5 w-3.5" />}
-      <span
-        className="bg-clip-text text-transparent"
-        style={{ backgroundImage: gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-      >
-        {tr.name}
-      </span>
-    </span>
   );
 }

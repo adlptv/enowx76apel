@@ -297,6 +297,7 @@ export interface SyncUser {
   bio?: string;
   accent_color?: string;
   links?: ProfileLink[];
+  created_at?: string;
 }
 
 export interface ProfileLink {
@@ -323,6 +324,7 @@ export interface PublicProfile {
   avatar_url: string;
   plan: string;
   top_role_id: string;
+  top_role?: TopRole | null;
   wears_tag: boolean;
   guild_tag: string;
   kleos: number;
