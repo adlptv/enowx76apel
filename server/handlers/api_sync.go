@@ -194,6 +194,21 @@ func (h *Sync) ChatReact(w http.ResponseWriter, r *http.Request) {
 	writeData(w, out)
 }
 
+// ChatUpvote proxies toggling an upvote on a chat message.
+func (h *Sync) ChatUpvote(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	raw, err := h.mgr.ChatUpvote(r.Context(), id)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
 // ChatStream is a Server-Sent Events stream relaying live cloud events (chat
 // messages, announcements) to the browser.
 func (h *Sync) ChatStream(w http.ResponseWriter, r *http.Request) {

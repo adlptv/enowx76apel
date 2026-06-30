@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Wifi, WifiOff, Pencil, Trash2, Copy, Reply, X, SmilePlus } from "lucide-react";
+import { Loader2, Send, Wifi, WifiOff, Pencil, Trash2, Copy, Reply, X, SmilePlus, ChevronUp } from "lucide-react";
 import { AppShell } from "./shell";
 import { Popover } from "../components/Popover";
 import { ProfileCard } from "../components/ProfileCard";
 import { useProfile } from "../os/useProfile";
-import { useChat, sendChat, editChat, deleteChat, reactChat } from "../os/chatBus";
+import { useChat, sendChat, editChat, deleteChat, reactChat, upvoteChat } from "../os/chatBus";
 import { useDialog } from "../os/dialog";
 import { profileApi, type ChatMessage, type PublicProfile } from "../lib/api";
 
@@ -214,6 +214,7 @@ function MessageRow({
             </Popover>
           )}
         </div>
+        <ActBtn label="Upvote" onClick={() => upvoteChat(m.id)}><ChevronUp className="h-3.5 w-3.5" /></ActBtn>
         <ActBtn label="Reply" onClick={onReply}><Reply className="h-3.5 w-3.5" /></ActBtn>
         <ActBtn label="Copy" onClick={() => navigator.clipboard?.writeText(m.content)}><Copy className="h-3.5 w-3.5" /></ActBtn>
         {mine && (
@@ -275,9 +276,21 @@ function MessageRow({
             {m.edited_at && <span className="ml-1 text-[10px] text-white/25">(edited)</span>}
           </p>
         )}
-        {m.reactions && m.reactions.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {m.reactions.map((rx) => (
+        {(!!m.upvotes || (m.reactions && m.reactions.length > 0)) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <button
+              onClick={() => upvoteChat(m.id)}
+              title="Upvote (gives the author Kleos)"
+              className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors ${
+                m.upvoted
+                  ? "border-amber-400/40 bg-amber-400/15 text-amber-200"
+                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              }`}
+            >
+              <ChevronUp className="h-3 w-3" />
+              <span className="tabular-nums">{m.upvotes ?? 0}</span>
+            </button>
+            {m.reactions?.map((rx) => (
               <button
                 key={rx.emoji}
                 onClick={() => react(rx.emoji)}

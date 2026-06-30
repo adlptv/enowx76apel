@@ -339,6 +339,8 @@ export interface ChatMessage {
   wears_tag?: boolean;
   guild_tag?: string;
   reactions?: Reaction[];
+  upvotes?: number;
+  upvoted?: boolean;
 }
 
 export interface Reaction {
@@ -353,6 +355,7 @@ export const chatApi = {
   edit: (id: number, content: string) => api.patch<{ id: number; content: string }>(`/api/chat/messages/${id}`, { content }),
   remove: (id: number) => api.del<{ deleted: number }>(`/api/chat/messages/${id}`),
   react: (id: number, emoji: string) => api.post<{ message_id: number; reactions: Reaction[] }>(`/api/chat/messages/${id}/reactions`, { emoji }),
+  upvote: (id: number) => api.post<{ message_id: number; count: number; me: boolean; kleos_awarded: number }>(`/api/chat/messages/${id}/upvote`),
 };
 
 // PublicProfile is what other members can see (social data only — no secrets).

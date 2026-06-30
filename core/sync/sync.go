@@ -281,6 +281,15 @@ func (m *Manager) ChatReact(ctx context.Context, id string, body json.RawMessage
 	return string(raw), nil
 }
 
+// ChatUpvote toggles the caller's upvote on a chat message.
+func (m *Manager) ChatUpvote(ctx context.Context, id string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/chat/messages/"+id+"/upvote", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // --- protocol types (must match the enowxlabs server) ---
 
 type item struct {
