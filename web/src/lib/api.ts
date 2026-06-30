@@ -368,6 +368,47 @@ export const adminApi = {
   review: (id: number) => api.post<{ reviewed: number }>(`/api/admin/flags/${id}/review`),
 };
 
+export interface PostCategory {
+  key: string;
+  label: string;
+}
+
+export interface Post {
+  id: number;
+  user_id: string;
+  category: string;
+  title: string;
+  body: string;
+  created_at: string;
+  edited_at?: string | null;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+  top_role?: TopRole | null;
+  wears_tag?: boolean;
+  guild_tag?: string;
+  upvotes: number;
+  upvoted: boolean;
+  reactions?: Reaction[];
+}
+
+export const postsApi = {
+  list: (opts?: { sort?: string; category?: string; before?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (opts?.sort) q.set("sort", opts.sort);
+    if (opts?.category) q.set("category", opts.category);
+    if (opts?.before) q.set("before", String(opts.before));
+    if (opts?.offset) q.set("offset", String(opts.offset));
+    const s = q.toString();
+    return api.get<{ posts: Post[]; categories: PostCategory[] }>(`/api/posts${s ? `?${s}` : ""}`);
+  },
+  create: (category: string, title: string, body: string) => api.post<Post>("/api/posts", { category, title, body }),
+  edit: (id: number, title: string, body: string) => api.patch<{ id: number }>(`/api/posts/${id}`, { title, body }),
+  remove: (id: number) => api.del<{ deleted: number }>(`/api/posts/${id}`),
+  upvote: (id: number) => api.post<{ id: number; count: number; me: boolean }>(`/api/posts/${id}/upvote`),
+  react: (id: number, emoji: string) => api.post<{ id: number; reactions: Reaction[] }>(`/api/posts/${id}/reactions`, { emoji }),
+};
+
 // ChatMessage carries the message + a snapshot of the author's identity.
 export interface ChatMessage {
   id: number;

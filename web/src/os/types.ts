@@ -13,7 +13,8 @@ export type AppId =
   | "tunnel"
   | "profile"
   | "chat"
-  | "shop";
+  | "shop"
+  | "posts";
 
 export type Side = "left" | "right";
 

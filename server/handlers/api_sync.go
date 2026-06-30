@@ -114,6 +114,62 @@ func (h *Sync) PublicProfile(w http.ResponseWriter, r *http.Request) {
 	writeData(w, profile)
 }
 
+// PostsList proxies the community feed.
+func (h *Sync) PostsList(w http.ResponseWriter, r *http.Request) {
+	q := ""
+	if raw := r.URL.RawQuery; raw != "" {
+		q = "?" + raw
+	}
+	out, err := h.mgr.PostsList(r.Context(), q)
+	proxyJSON(w, out, err)
+}
+
+// PostCreate proxies creating a post.
+func (h *Sync) PostCreate(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 8192))
+	out, err := h.mgr.PostCreate(r.Context(), body)
+	proxyJSON(w, out, err)
+}
+
+// PostEdit proxies editing a post.
+func (h *Sync) PostEdit(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 8192))
+	out, err := h.mgr.PostAction(r.Context(), http.MethodPatch, chi.URLParam(r, "id"), "", body)
+	proxyJSON(w, out, err)
+}
+
+// PostDelete proxies deleting a post.
+func (h *Sync) PostDelete(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.PostAction(r.Context(), http.MethodDelete, chi.URLParam(r, "id"), "", nil)
+	proxyJSON(w, out, err)
+}
+
+// PostUpvote proxies toggling a post upvote.
+func (h *Sync) PostUpvote(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.PostAction(r.Context(), http.MethodPost, chi.URLParam(r, "id"), "/upvote", nil)
+	proxyJSON(w, out, err)
+}
+
+// PostReact proxies toggling a post reaction.
+func (h *Sync) PostReact(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1024))
+	out, err := h.mgr.PostAction(r.Context(), http.MethodPost, chi.URLParam(r, "id"), "/reactions", body)
+	proxyJSON(w, out, err)
+}
+
+// proxyJSON writes a proxied JSON string (or an error) as the API envelope.
+func proxyJSON(w http.ResponseWriter, raw string, err error) {
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
 // AdminFlags proxies the moderator duplicate-account review queue.
 func (h *Sync) AdminFlags(w http.ResponseWriter, r *http.Request) {
 	raw, err := h.mgr.AdminFlags(r.Context())

@@ -124,6 +124,13 @@ func New(addr string, d Deps) *Server {
 		r.Post("/sync/auto", syncH.SetAuto)
 		r.Patch("/profile", syncH.UpdateProfile)
 		r.Get("/users/{id}/profile", syncH.PublicProfile)
+		r.Get("/posts", syncH.PostsList)
+		r.Post("/posts", syncH.PostCreate)
+		r.Patch("/posts/{id}", syncH.PostEdit)
+		r.Delete("/posts/{id}", syncH.PostDelete)
+		r.Post("/posts/{id}/upvote", syncH.PostUpvote)
+		r.Post("/posts/{id}/reactions", syncH.PostReact)
+
 		r.Get("/shop", syncH.Shop)
 		r.Post("/shop/buy", syncH.ShopBuy)
 		r.Post("/shop/equip", syncH.ShopEquip)

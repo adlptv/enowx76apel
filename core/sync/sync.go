@@ -236,6 +236,33 @@ func (m *Manager) PublicProfile(ctx context.Context, id string) (string, error) 
 	return string(raw), nil
 }
 
+// PostsList fetches a page of the community feed (query appended).
+func (m *Manager) PostsList(ctx context.Context, query string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/posts"+query, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// PostCreate creates a post.
+func (m *Manager) PostCreate(ctx context.Context, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/posts", body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// PostAction proxies a post sub-action: method PATCH/DELETE/POST on /posts/{id}{suffix}.
+func (m *Manager) PostAction(ctx context.Context, method, id, suffix string, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, method, "/posts/"+id+suffix, body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // AdminFlags fetches the moderator duplicate-account review queue.
 func (m *Manager) AdminFlags(ctx context.Context) (string, error) {
 	var raw json.RawMessage
