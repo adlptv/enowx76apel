@@ -24,7 +24,7 @@ export function ProviderIcon({ icon, label, size = 40 }: { icon: string; label: 
       alt=""
       onError={() => setStep((s) => s + 1)}
       className="rounded-xl object-contain"
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, imageRendering: "auto" }}
     />
   );
 }
