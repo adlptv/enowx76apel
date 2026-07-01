@@ -5,6 +5,7 @@ import { ProviderIcon } from "../components/ProviderIcon";
 import { AddAccountModal } from "../components/AddAccountModal";
 import { KiroAddModal } from "../components/KiroAddModal";
 import { CodexAddModal } from "../components/CodexAddModal";
+import { AntigravityAddModal } from "../components/AntigravityAddModal";
 import { providersApi, accountsApi, type Provider, type Account } from "../lib/api";
 
 export function ProvidersApp() {
@@ -107,7 +108,17 @@ export function ProvidersApp() {
           }}
         />
       )}
-      {adding && adding.name !== "kiro" && adding.name !== "codex" && (
+      {adding && adding.name === "antigravity" && (
+        <AntigravityAddModal
+          provider={adding}
+          onClose={() => setAdding(null)}
+          onSaved={() => {
+            setAdding(null);
+            load();
+          }}
+        />
+      )}
+      {adding && adding.name !== "kiro" && adding.name !== "codex" && adding.name !== "antigravity" && (
         <AddAccountModal
           provider={adding}
           onClose={() => setAdding(null)}

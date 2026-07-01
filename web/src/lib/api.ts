@@ -141,6 +141,14 @@ export const codexApi = {
     api.post<{ id: number }>("/api/accounts/codex/manual", { json, label }),
 };
 
+export const antigravityApi = {
+  oauthStart: () => api.post<{ session: string; authorize_url: string }>("/api/accounts/antigravity/oauth/start"),
+  oauthExchange: (session: string, code: string) =>
+    api.post<{ id: number }>("/api/accounts/antigravity/oauth/exchange", { session, code }),
+  manual: (json: string, label?: string) =>
+    api.post<{ id: number }>("/api/accounts/antigravity/manual", { json, label }),
+};
+
 export interface LocalSource {
   provider: string;
   target: string;

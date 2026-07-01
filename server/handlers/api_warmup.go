@@ -74,7 +74,8 @@ func NewWarmup(p *proxy.Proxy, reg *provider.Registry, s store.AccountStore, log
 var warmupModel = map[string]string{
 	"codebuddy": "gemini-2.5-flash",
 	"kiro":      "claude-sonnet-4",
-	"codex":     "gpt-5.4-mini",
+	"codex":       "gpt-5.4-mini",
+	"antigravity": "gemini-3.5-flash-low",
 }
 
 // warmupSystem is set for providers that reject requests without a system turn

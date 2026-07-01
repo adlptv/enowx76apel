@@ -10,6 +10,7 @@ import (
 	"github.com/enowdev/enowx/config"
 	"github.com/enowdev/enowx/core/pool"
 	"github.com/enowdev/enowx/core/provider"
+	"github.com/enowdev/enowx/core/provider/antigravity"
 	"github.com/enowdev/enowx/core/provider/codebuddy"
 	"github.com/enowdev/enowx/core/provider/codex"
 	"github.com/enowdev/enowx/core/provider/kiro"
@@ -55,6 +56,7 @@ func main() {
 	reg.Register(codebuddy.New())
 	reg.Register(kiro.New(doer, saveCreds))
 	reg.Register(codex.New(doer, saveCreds))
+	reg.Register(antigravity.New(doer, saveCreds))
 
 	px := proxy.New(reg, pool.New(db.Accounts()), doer)
 	tun := tunnel.New(cfg.RuntimeDir, cfg.Port)
