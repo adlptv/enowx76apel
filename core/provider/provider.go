@@ -60,6 +60,16 @@ type Usage struct {
 	Remaining float64 `json:"remaining"`
 	Plan      string  `json:"plan,omitempty"`
 	Message   string  `json:"message,omitempty"`
+	// Windows is an optional list of named rate-limit windows (e.g. Codex's 5h
+	// + weekly). When present the UI shows a bar per window instead of credit.
+	Windows []UsageWindow `json:"windows,omitempty"`
+}
+
+// UsageWindow is one rate-limit window as a used-percentage plus reset time.
+type UsageWindow struct {
+	Label       string  `json:"label"`               // e.g. "5h", "Weekly"
+	UsedPercent float64 `json:"used_percent"`        // 0..100
+	ResetInSecs int64   `json:"reset_in_secs,omitempty"`
 }
 
 // UsageReporter is an optional capability: providers that can report an

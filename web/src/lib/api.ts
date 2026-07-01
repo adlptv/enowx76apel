@@ -46,12 +46,18 @@ export const providersApi = {
   list: () => api.get<Provider[]>("/api/providers"),
 };
 
+export interface UsageWindow {
+  label: string;
+  used_percent: number;
+  reset_in_secs?: number;
+}
 export interface Usage {
   limit: number;
   used: number;
   remaining: number;
   plan?: string;
   message?: string;
+  windows?: UsageWindow[];
 }
 
 // ProviderModel is one model an account can access (from live fetch or the
