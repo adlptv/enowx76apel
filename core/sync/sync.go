@@ -471,6 +471,15 @@ func (m *Manager) ChatSend(ctx context.Context, body json.RawMessage) (string, e
 	return string(raw), nil
 }
 
+// ChatShareMusic posts a music card to the music channel.
+func (m *Manager) ChatShareMusic(ctx context.Context, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/chat/share-music", body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // ChatEdit edits the caller's own chat message.
 func (m *Manager) ChatEdit(ctx context.Context, id string, body json.RawMessage) (string, error) {
 	var raw json.RawMessage

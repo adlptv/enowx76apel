@@ -517,6 +517,16 @@ export interface ChatMessage {
   guild_tag?: string;
   reactions?: Reaction[];
   channel?: string;
+  music?: MusicShare;
+}
+
+// MusicShare is the payload of a shared track/playlist card in the music channel.
+export interface MusicShare {
+  kind: "track" | "playlist";
+  title: string;
+  subtitle?: string;
+  cover?: string;
+  ref?: string;
 }
 
 export interface Reaction {
@@ -528,6 +538,7 @@ export interface Reaction {
 export interface ChatChannel {
   key: string;
   label: string;
+  read_only?: boolean;
 }
 
 export const chatApi = {
@@ -540,6 +551,7 @@ export const chatApi = {
   edit: (id: number, content: string) => api.patch<{ id: number; content: string }>(`/api/chat/messages/${id}`, { content }),
   remove: (id: number) => api.del<{ deleted: number }>(`/api/chat/messages/${id}`),
   react: (id: number, emoji: string) => api.post<{ message_id: number; reactions: Reaction[] }>(`/api/chat/messages/${id}/reactions`, { emoji }),
+  shareMusic: (music: MusicShare, message?: string) => api.post<ChatMessage>("/api/chat/share-music", { music, message: message ?? "" }),
 };
 
 export const modApi = {

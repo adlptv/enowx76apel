@@ -178,6 +178,19 @@ export function playList(tracks: Track[], startAt = 0) {
   load(tracks[i], { source: "context", context: tracks, contextIndex: i }, true);
 }
 
+// openMusicShare handles a music card click from the community chat: a shared
+// track's ref carries the full Track JSON, so we play it immediately. (Playlist
+// shares are informational for now.)
+export function openMusicShare(m: { kind: string; ref?: string }) {
+  if (m.kind !== "track" || !m.ref) return;
+  try {
+    const track = JSON.parse(m.ref) as Track;
+    if (track && track.id) playList([track], 0);
+  } catch {
+    /* malformed ref — ignore */
+  }
+}
+
 // enqueue adds a track to the interrupt queue ("play next"). It does not change
 // what is currently playing; if nothing is playing yet, it starts the queue.
 export function enqueue(track: Track) {

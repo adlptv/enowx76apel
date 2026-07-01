@@ -16,6 +16,8 @@ import { MentionDropdown } from "../components/MentionDropdown";
 import { MentionInput } from "../components/MentionInput";
 import { useMention } from "../os/useMention";
 import { mentionsMe } from "../os/mentions";
+import { MusicCard } from "../components/MusicCard";
+import { openMusicShare } from "../os/musicBus";
 import { profileApi, modApi, type ChatMessage, type PublicProfile, type TopRole } from "../lib/api";
 
 interface ReplyTarget {
@@ -47,6 +49,7 @@ export function ChatApp() {
 
 function ChatRoom() {
   const { messages, channels, channel, loading, connected } = useChat();
+  const readOnly = channels.find((c) => c.key === channel)?.read_only ?? false;
   const profile = useProfile();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -137,6 +140,12 @@ function ChatRoom() {
         <div ref={endRef} />
       </div>
 
+      {readOnly ? (
+        <div className="border-t border-white/5 px-4 py-3 text-center text-[11px] text-white/40">
+          This channel is read-only — share tracks from the Music app.
+        </div>
+      ) : (
+      <>
       {reply && (
         <div className="mx-4 flex items-center justify-between gap-2 rounded-t-lg border-x border-t border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px]">
           <span className="min-w-0 truncate text-white/50">
@@ -193,6 +202,8 @@ function ChatRoom() {
           {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -337,6 +348,7 @@ function MessageRow({
               </div>
             )}
             {m.images && m.images.length > 0 && <ImageGrid images={m.images} />}
+            {m.music && <MusicCard m={m.music} onOpen={() => m.music && openMusicShare(m.music)} />}
           </>
         )}
         {m.reactions && m.reactions.length > 0 && (

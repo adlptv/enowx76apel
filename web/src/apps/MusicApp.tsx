@@ -12,6 +12,7 @@ import {
   ListMusic,
   RefreshCw,
   Share2,
+  Send,
   Download,
   ChevronLeft,
   FolderPlus,
@@ -23,12 +24,42 @@ import { Tooltip } from "../components/Tooltip";
 import { Popover } from "../components/Popover";
 import { useDialog } from "../os/dialog";
 import { usePersisted } from "../os/usePersisted";
-import { musicApi, type Track, type Playlist } from "../lib/api";
+import { musicApi, chatApi, type Track, type Playlist, type MusicShare } from "../lib/api";
 import { useMusic, playInContext, playList, playFromQueue, enqueue, toggle, currentTrack, removeFromQueue, clearQueue } from "../os/musicBus";
 import { usedPlaylists } from "../os/musicPlaylists";
 import { useDiscover } from "../os/musicDiscover";
 
 type Tab = "home" | "playlists" | "queue";
+
+type Dialog = ReturnType<typeof useDialog>;
+
+// shareTrackToChat / sharePlaylistToChat post a music card to the read-only
+// #music community channel, with an optional message. A track carries its full
+// data in `ref` so the card can play it on click.
+async function shareToChat(music: MusicShare, dialog: Dialog) {
+  const message = await dialog.prompt({
+    title: `Share to #music`,
+    message: music.title,
+    placeholder: "Add a message (optional)…",
+    confirmLabel: "Share",
+  });
+  if (message === null) return; // cancelled
+  try {
+    await chatApi.shareMusic(music, message);
+    await dialog.alert({ title: "Shared to #music", message: music.title });
+  } catch (e) {
+    await dialog.alert({ title: "Share failed", message: e instanceof Error ? e.message : "" });
+  }
+}
+
+function shareTrackToChat(t: Track, dialog: Dialog) {
+  shareToChat({ kind: "track", title: t.title, subtitle: t.artist, cover: t.thumbnail, ref: JSON.stringify(t) }, dialog);
+}
+
+function sharePlaylistToChat(p: { name: string; count?: number; tracks?: Track[] }, dialog: Dialog) {
+  const count = p.count ?? p.tracks?.length ?? 0;
+  shareToChat({ kind: "playlist", title: p.name, subtitle: `${count} track${count === 1 ? "" : "s"}` }, dialog);
+}
 
 export function MusicApp() {
   const [tab, setTab] = usePersisted<Tab>("music-tab", "home");
@@ -337,7 +368,12 @@ function PlaylistDetail({ id, onBack }: { id: number; onBack: () => void }) {
             </button>
           </Tooltip>
         )}
-        <Tooltip label="Export / share this playlist" place="bottom">
+        <Tooltip label="Share to #music" place="bottom">
+          <button onClick={() => sharePlaylistToChat({ name: pl?.name ?? "Playlist", tracks }, dialog)} className="rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-white">
+            <Send className="h-3.5 w-3.5" />
+          </button>
+        </Tooltip>
+        <Tooltip label="Export playlist (JSON)" place="bottom">
           <button onClick={onShare} className="rounded-lg p-1.5 text-white/55 hover:bg-white/10 hover:text-white">
             <Share2 className="h-3.5 w-3.5" />
           </button>
@@ -492,6 +528,11 @@ function AddToActions({ track }: { track: Track }) {
       <Tooltip label={inQueue ? "Already in queue" : "Add to queue"} place="left">
         <button onClick={() => enqueue(track)} disabled={inQueue} className="rounded p-1 text-white/40 hover:bg-white/10 hover:text-white/80 disabled:opacity-30">
           <Plus className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip>
+      <Tooltip label="Share to #music" place="left">
+        <button onClick={() => shareTrackToChat(track, dialog)} className="rounded p-1 text-white/40 hover:bg-white/10 hover:text-white/80">
+          <Share2 className="h-3.5 w-3.5" />
         </button>
       </Tooltip>
 

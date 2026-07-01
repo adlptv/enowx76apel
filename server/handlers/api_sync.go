@@ -442,6 +442,21 @@ func (h *Sync) ChatSend(w http.ResponseWriter, r *http.Request) {
 	writeData(w, out)
 }
 
+// ChatShareMusic proxies sharing a music card to the music channel.
+func (h *Sync) ChatShareMusic(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 8192))
+	raw, err := h.mgr.ChatShareMusic(r.Context(), body)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
 // ChatEdit proxies editing the caller's own chat message.
 func (h *Sync) ChatEdit(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

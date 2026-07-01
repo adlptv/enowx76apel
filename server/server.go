@@ -153,6 +153,7 @@ func New(addr string, d Deps) *Server {
 		r.Post("/admin/users/{id}/{action}", syncH.AdminUserAction)
 		r.Get("/chat/messages", syncH.ChatList)
 		r.Post("/chat/messages", syncH.ChatSend)
+		r.Post("/chat/share-music", syncH.ChatShareMusic)
 		r.Patch("/chat/messages/{id}", syncH.ChatEdit)
 		r.Delete("/chat/messages/{id}", syncH.ChatDelete)
 		r.Post("/chat/messages/{id}/reactions", syncH.ChatReact)
