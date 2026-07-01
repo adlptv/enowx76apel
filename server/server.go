@@ -148,6 +148,7 @@ func New(addr string, d Deps) *Server {
 		r.Get("/admin/log", syncH.AdminLog)
 		r.Get("/admin/stats", syncH.AdminStats)
 		r.Get("/admin/users", syncH.AdminUsers)
+		r.Post("/admin/users/{id}/{action}", syncH.AdminUserAction)
 		r.Get("/chat/messages", syncH.ChatList)
 		r.Post("/chat/messages", syncH.ChatSend)
 		r.Patch("/chat/messages/{id}", syncH.ChatEdit)

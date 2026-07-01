@@ -393,6 +393,20 @@ func (m *Manager) AdminUsers(ctx context.Context) (string, error) {
 	return string(raw), nil
 }
 
+// AdminUserAction proxies a user-targeted moderator action (moderator, ban,
+// mute, warn, kleos) with the given JSON body to the cloud.
+func (m *Manager) AdminUserAction(ctx context.Context, id, action string, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	var reqBody any
+	if len(body) > 0 {
+		reqBody = body
+	}
+	if err := m.call(ctx, http.MethodPost, "/admin/users/"+id+"/"+action, reqBody, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // Shop fetches the cosmetics catalog + the user's owned/equipped/balance.
 func (m *Manager) Shop(ctx context.Context) (string, error) {
 	var raw json.RawMessage

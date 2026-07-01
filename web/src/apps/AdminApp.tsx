@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, Users, Copy, ScrollText, BarChart3, ShieldCheck, ShieldOff, Search } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Loader2, Users, Copy, ScrollText, BarChart3, ShieldCheck, ShieldOff, Search, MoreHorizontal, Ban, VolumeX, AlertTriangle, Plus, Minus } from "lucide-react";
 import { AppShell } from "./shell";
 import { openProfile } from "../os/profileViewer";
 import { useAdminEvents } from "../os/adminBus";
+import { useDialog } from "../os/dialog";
 import { adminApi, modApi, searchApi, type FlaggedLink, type ModAction, type AdminStats } from "../lib/api";
 
 type Tab = "stats" | "flags" | "users" | "log";
@@ -119,12 +120,19 @@ function FlagsTab() {
 
 // AdminUserRow is the common shape rendered whether from the default list or a
 // search (search hits lack kleos/created_at, which the row doesn't need).
-type AdminUserRow = { id: string; username: string; display_name: string; avatar_url: string; is_moderator: boolean };
+type AdminUserRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  is_moderator: boolean;
+  is_banned?: boolean;
+  muted_until?: string;
+};
 
 function UsersTab() {
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<AdminUserRow[] | null>(null);
-  const [busy, setBusy] = useState("");
 
   // Default list (moderators first), shown when the search box is empty.
   const loadDefault = useCallback(() => {
@@ -145,15 +153,9 @@ function UsersTab() {
       setUsers([]);
     }
   }
-  async function toggleMod(u: AdminUserRow) {
-    setBusy(u.id);
-    try {
-      const r = await modApi.setModerator(u.id, !u.is_moderator);
-      setUsers((hs) => (hs ? hs.map((x) => (x.id === u.id ? { ...x, is_moderator: r.is_moderator } : x)) : hs));
-    } finally {
-      setBusy("");
-    }
-  }
+  const patch = (id: string, p: Partial<AdminUserRow>) =>
+    setUsers((hs) => (hs ? hs.map((x) => (x.id === id ? { ...x, ...p } : x)) : hs));
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5">
@@ -161,23 +163,101 @@ function UsersTab() {
         <input value={q} onChange={(e) => run(e.target.value)} placeholder="Search users by name…" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none" />
       </div>
       {!users && <div className="h-10 animate-pulse rounded-lg bg-white/5" />}
-      {users?.map((u) => (
-        <div key={u.id} className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.02] p-2">
-          <button onClick={() => openProfile(u.id)} className="min-w-0 flex flex-1 items-center gap-2.5 text-left">
-            {u.avatar_url ? <img src={u.avatar_url} alt="" className="h-8 w-8 rounded-full" /> : <div className="h-8 w-8 rounded-full bg-white/10" />}
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-white">{u.display_name || u.username}{u.is_moderator && <span className="ml-1.5 text-[10px] text-emerald-300">MOD</span>}</div>
-              <div className="truncate text-[11px] text-white/40">@{u.username}</div>
-            </div>
-          </button>
-          <button onClick={() => toggleMod(u)} disabled={busy === u.id} className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] disabled:opacity-50 ${u.is_moderator ? "border-red-400/20 text-red-300 hover:bg-red-400/10" : "border-emerald-400/20 text-emerald-300 hover:bg-emerald-400/10"}`}>
-            {busy === u.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : u.is_moderator ? <ShieldOff className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-            {u.is_moderator ? "Revoke" : "Make mod"}
-          </button>
-        </div>
-      ))}
+      {users?.map((u) => <UserRow key={u.id} u={u} patch={patch} />)}
       {users?.length === 0 && <div className="text-[11px] text-white/40">{q.trim().length >= 2 ? "No users found." : "No users."}</div>}
     </div>
+  );
+}
+
+const MUTE_OPTIONS = [
+  { label: "10 min", minutes: 10 },
+  { label: "1 hour", minutes: 60 },
+  { label: "1 day", minutes: 1440 },
+  { label: "1 week", minutes: 10080 },
+];
+
+// UserRow renders one user with the full moderator action set: make/revoke mod,
+// ban/unban, mute (durations)/unmute, warn, and adjust Kleos. Each action is
+// role-gated server-side.
+function UserRow({ u, patch }: { u: AdminUserRow; patch: (id: string, p: Partial<AdminUserRow>) => void }) {
+  const dialog = useDialog();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const muted = !!u.muted_until && new Date(u.muted_until).getTime() > Date.now();
+
+  async function act(fn: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      dialog.alert({ title: "Action failed", message: e instanceof Error ? e.message : "" });
+    } finally {
+      setBusy(false);
+      setOpen(false);
+    }
+  }
+  const toggleMod = () => act(async () => { const r = await modApi.setModerator(u.id, !u.is_moderator); patch(u.id, { is_moderator: r.is_moderator }); });
+  const toggleBan = () => act(async () => { const r = await adminApi.ban(u.id, !u.is_banned); patch(u.id, { is_banned: r.banned }); });
+  const mute = (minutes: number) => act(async () => { await adminApi.mute(u.id, minutes); patch(u.id, { muted_until: minutes ? new Date(Date.now() + minutes * 60000).toISOString() : undefined }); });
+  const warn = () => act(async () => {
+    const msg = await dialog.prompt({ title: "Send warning", message: `to @${u.username}`, placeholder: "Reason for the warning…" });
+    if (msg && msg.trim()) await adminApi.warn(u.id, msg.trim());
+  });
+  const kleos = (delta: number) => act(async () => {
+    const raw = await dialog.prompt({ title: `${delta > 0 ? "Add" : "Remove"} Kleos`, message: `for @${u.username}`, defaultValue: "10" });
+    const n = parseInt(raw || "0", 10);
+    if (n > 0) await adminApi.adjustKleos(u.id, delta * n);
+  });
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02]">
+      <div className="flex items-center gap-2.5 p-2">
+        <button onClick={() => openProfile(u.id)} className="min-w-0 flex flex-1 items-center gap-2.5 text-left">
+          {u.avatar_url ? <img src={u.avatar_url} alt="" className="h-8 w-8 rounded-full" /> : <div className="h-8 w-8 rounded-full bg-white/10" />}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 truncate text-sm font-medium text-white">
+              {u.display_name || u.username}
+              {u.is_moderator && <span className="text-[10px] text-emerald-300">MOD</span>}
+              {u.is_banned && <span className="rounded bg-red-500/20 px-1 text-[10px] text-red-300">BANNED</span>}
+              {muted && <span className="rounded bg-amber-500/20 px-1 text-[10px] text-amber-300">MUTED</span>}
+            </div>
+            <div className="truncate text-[11px] text-white/40">@{u.username}</div>
+          </div>
+        </button>
+        <button onClick={() => setOpen((o) => !o)} disabled={busy} className="rounded-lg border border-white/10 p-1.5 text-white/60 hover:bg-white/5 disabled:opacity-50">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {open && (
+        <div className="flex flex-wrap gap-1.5 border-t border-white/5 p-2">
+          <ActBtn onClick={toggleMod} tone={u.is_moderator ? "red" : "green"} icon={u.is_moderator ? ShieldOff : ShieldCheck}>{u.is_moderator ? "Revoke mod" : "Make mod"}</ActBtn>
+          <ActBtn onClick={toggleBan} tone="red" icon={Ban}>{u.is_banned ? "Unban" : "Ban"}</ActBtn>
+          {muted ? (
+            <ActBtn onClick={() => mute(0)} tone="amber" icon={VolumeX}>Unmute</ActBtn>
+          ) : (
+            MUTE_OPTIONS.map((m) => <ActBtn key={m.minutes} onClick={() => mute(m.minutes)} tone="amber" icon={VolumeX}>Mute {m.label}</ActBtn>)
+          )}
+          <ActBtn onClick={warn} tone="neutral" icon={AlertTriangle}>Warn</ActBtn>
+          <ActBtn onClick={() => kleos(1)} tone="neutral" icon={Plus}>Kleos</ActBtn>
+          <ActBtn onClick={() => kleos(-1)} tone="neutral" icon={Minus}>Kleos</ActBtn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActBtn({ onClick, tone, icon: Icon, children }: { onClick: () => void; tone: "red" | "green" | "amber" | "neutral"; icon: typeof ShieldCheck; children: ReactNode }) {
+  const tones = {
+    red: "border-red-400/20 text-red-300 hover:bg-red-400/10",
+    green: "border-emerald-400/20 text-emerald-300 hover:bg-emerald-400/10",
+    amber: "border-amber-400/20 text-amber-300 hover:bg-amber-400/10",
+    neutral: "border-white/10 text-white/70 hover:bg-white/5",
+  };
+  return (
+    <button onClick={onClick} className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] ${tones[tone]}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {children}
+    </button>
   );
 }
 

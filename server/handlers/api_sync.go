@@ -319,6 +319,24 @@ func (h *Sync) AdminUsers(w http.ResponseWriter, r *http.Request) {
 	writeData(w, out)
 }
 
+// AdminUserAction proxies a user-targeted moderator action (the {action} path
+// segment: moderator, ban, mute, warn, kleos).
+func (h *Sync) AdminUserAction(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	action := chi.URLParam(r, "action")
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	raw, err := h.mgr.AdminUserAction(r.Context(), id, action, body)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	var out any
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	writeData(w, out)
+}
+
 // Shop proxies the cosmetics catalog + owned/equipped/balance.
 func (h *Sync) Shop(w http.ResponseWriter, r *http.Request) {
 	raw, err := h.mgr.Shop(r.Context())

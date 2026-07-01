@@ -411,6 +411,8 @@ export interface AdminUser {
   avatar_url: string;
   top_role_id: string;
   is_moderator: boolean;
+  is_banned: boolean;
+  muted_until?: string;
   kleos: number;
   created_at: string;
 }
@@ -421,6 +423,10 @@ export const adminApi = {
   log: () => api.get<{ actions: ModAction[] }>("/api/admin/log"),
   stats: () => api.get<AdminStats>("/api/admin/stats"),
   users: () => api.get<{ users: AdminUser[] }>("/api/admin/users"),
+  ban: (id: string, on: boolean) => api.post<{ banned: boolean }>(`/api/admin/users/${id}/ban`, { on }),
+  mute: (id: string, minutes: number) => api.post<{ muted_minutes: number }>(`/api/admin/users/${id}/mute`, { minutes }),
+  warn: (id: string, message: string) => api.post<{ warned: boolean }>(`/api/admin/users/${id}/warn`, { message }),
+  adjustKleos: (id: string, amount: number) => api.post<{ kleos: number }>(`/api/admin/users/${id}/kleos`, { amount }),
 };
 
 export interface PostCategory {
