@@ -230,6 +230,45 @@ export interface NewApiKey {
   expires_in_days?: number;
 }
 
+// --- API Test dev tool ---
+export interface KV { key: string; value: string; on?: boolean }
+export interface ApiCollection { id: number; name: string; sort: number }
+export interface ApiSavedRequest {
+  id: number;
+  collection_id: number;
+  name: string;
+  method: string;
+  url: string;
+  headers: string; // JSON [{key,value,on}]
+  query: string;   // JSON [{key,value,on}]
+  body: string;
+  body_type: string;
+  auth: string;    // JSON {type,...}
+  sort: number;
+}
+export interface ApiEnvironment { id: number; name: string; vars: string; active: boolean }
+export interface ApiHistoryItem { id: number; method: string; url: string; status: number; duration_ms: number; at: string }
+export interface ApiTestData {
+  collections: ApiCollection[];
+  requests: ApiSavedRequest[];
+  environments: ApiEnvironment[];
+  history: ApiHistoryItem[];
+}
+
+export const apitestApi = {
+  all: () => api.get<ApiTestData>("/api/apitest"),
+  addCollection: (name: string) => api.post<{ id: number }>("/api/apitest/collections", { name }),
+  renameCollection: (id: number, name: string) => api.patch<{ ok: boolean }>(`/api/apitest/collections/${id}`, { name }),
+  deleteCollection: (id: number) => api.del<{ ok: boolean }>(`/api/apitest/collections/${id}`),
+  saveRequest: (r: Partial<ApiSavedRequest>) => api.post<{ id: number }>("/api/apitest/requests", r),
+  deleteRequest: (id: number) => api.del<{ ok: boolean }>(`/api/apitest/requests/${id}`),
+  saveEnv: (e: Partial<ApiEnvironment>) => api.post<{ id: number }>("/api/apitest/environments", e),
+  deleteEnv: (id: number) => api.del<{ ok: boolean }>(`/api/apitest/environments/${id}`),
+  activateEnv: (id: number) => api.post<{ ok: boolean }>(`/api/apitest/environments/${id}/activate`),
+  addHistory: (h: Partial<ApiHistoryItem>) => api.post<{ ok: boolean }>("/api/apitest/history", h),
+  clearHistory: () => api.del<{ ok: boolean }>("/api/apitest/history"),
+};
+
 export const keysApi = {
   list: () => api.get<ApiKey[]>("/api/keys"),
   add: (k: NewApiKey = {}) => api.post<{ id: number; secret: string }>("/api/keys", k),

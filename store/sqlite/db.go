@@ -25,6 +25,7 @@ type DB struct {
 	music    *musicStore
 	settings *settingsStore
 	aliases  *aliasStore
+	apitest  *apiTestStore
 }
 
 func Open(path string) (*DB, error) {
@@ -44,7 +45,38 @@ func Open(path string) (*DB, error) {
 	d.music = &musicStore{db: db}
 	d.settings = &settingsStore{db: db}
 	d.aliases = &aliasStore{db: db}
+	d.apitest = &apiTestStore{db: db}
+	seedApiTest(db)
 	return d, nil
+}
+
+// seedApiTest inserts a built-in "Gateway" collection with example requests the
+// first time (no collections yet), so the dev tool isn't empty on first open.
+func seedApiTest(db *sql.DB) {
+	var n int
+	if db.QueryRow(`SELECT COUNT(*) FROM apitest_collections`).Scan(&n); n > 0 {
+		return
+	}
+	res, err := db.Exec(`INSERT INTO apitest_collections (name, sort) VALUES ('Gateway', 0)`)
+	if err != nil {
+		return
+	}
+	cid, _ := res.LastInsertId()
+	chatBody := `{
+  "model": "cb/gemini-3.1-pro",
+  "stream": false,
+  "messages": [{ "role": "user", "content": "hi" }]
+}`
+	anthBody := `{
+  "model": "cb/claude-sonnet-4.5",
+  "max_tokens": 64,
+  "messages": [{ "role": "user", "content": "hi" }]
+}`
+	stmt := `INSERT INTO apitest_requests (collection_id, name, method, url, body, body_type, sort) VALUES (?,?,?,?,?,?,?)`
+	db.Exec(stmt, cid, "Chat Completions", "POST", "/v1/chat/completions", chatBody, "json", 0)
+	db.Exec(stmt, cid, "Anthropic Messages", "POST", "/anthropic/v1/messages", anthBody, "json", 1)
+	db.Exec(stmt, cid, "List accounts", "GET", "/api/accounts", "", "none", 2)
+	db.Exec(stmt, cid, "List models", "GET", "/api/models", "", "none", 3)
 }
 
 func (d *DB) Accounts() store.AccountStore  { return d.acct }
@@ -54,6 +86,7 @@ func (d *DB) Warmups() store.WarmupStore    { return d.warmups }
 func (d *DB) Music() store.MusicStore       { return d.music }
 func (d *DB) Settings() store.SettingsStore { return d.settings }
 func (d *DB) Aliases() store.AliasStore     { return d.aliases }
+func (d *DB) ApiTest() store.ApiTestStore   { return d.apitest }
 func (d *DB) Close() error                  { return d.db.Close() }
 
 func migrate(db *sql.DB) error {

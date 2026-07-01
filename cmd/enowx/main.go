@@ -73,6 +73,7 @@ func main() {
 		Music:      db.Music(),
 		SettingsKV: db.Settings(),
 		Aliases:    db.Aliases(),
+		ApiTest:    db.ApiTest(),
 		Tunnel:     tun,
 		Sync:       syncMgr,
 		Doer:       doer,

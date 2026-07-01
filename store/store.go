@@ -70,7 +70,73 @@ type Store interface {
 	Music() MusicStore
 	Settings() SettingsStore
 	Aliases() AliasStore
+	ApiTest() ApiTestStore
 	Close() error
+}
+
+// --- API Test (Postman-style dev tool) ---
+
+// ApiCollection groups saved requests.
+type ApiCollection struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	Sort int    `json:"sort"`
+}
+
+// ApiRequest is one saved request. Headers/Query/Auth are opaque JSON blobs the
+// frontend owns; the store just persists them.
+type ApiRequest struct {
+	ID           int64  `json:"id"`
+	CollectionID int64  `json:"collection_id"`
+	Name         string `json:"name"`
+	Method       string `json:"method"`
+	URL          string `json:"url"`
+	Headers      string `json:"headers"` // JSON: [{key,value,on}]
+	Query        string `json:"query"`   // JSON: [{key,value,on}]
+	Body         string `json:"body"`
+	BodyType     string `json:"body_type"`
+	Auth         string `json:"auth"` // JSON: {type,...}
+	Sort         int    `json:"sort"`
+}
+
+// ApiEnvironment is a named set of {{var}} substitutions.
+type ApiEnvironment struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Vars   string `json:"vars"` // JSON: [{key,value}]
+	Active bool   `json:"active"`
+}
+
+// ApiHistory is one executed request (most-recent first).
+type ApiHistory struct {
+	ID         int64  `json:"id"`
+	Method     string `json:"method"`
+	URL        string `json:"url"`
+	Status     int    `json:"status"`
+	DurationMS int64  `json:"duration_ms"`
+	At         string `json:"at"`
+}
+
+// ApiTestStore persists the dev tool's collections, requests, environments and
+// run history (all local, not synced).
+type ApiTestStore interface {
+	Collections(ctx context.Context) ([]ApiCollection, error)
+	AddCollection(ctx context.Context, name string) (int64, error)
+	RenameCollection(ctx context.Context, id int64, name string) error
+	DeleteCollection(ctx context.Context, id int64) error
+
+	Requests(ctx context.Context) ([]ApiRequest, error)
+	SaveRequest(ctx context.Context, req ApiRequest) (int64, error) // insert if ID==0, else update
+	DeleteRequest(ctx context.Context, id int64) error
+
+	Environments(ctx context.Context) ([]ApiEnvironment, error)
+	SaveEnvironment(ctx context.Context, env ApiEnvironment) (int64, error)
+	DeleteEnvironment(ctx context.Context, id int64) error
+	SetActiveEnvironment(ctx context.Context, id int64) error
+
+	History(ctx context.Context, limit int) ([]ApiHistory, error)
+	AddHistory(ctx context.Context, h ApiHistory) error
+	ClearHistory(ctx context.Context) error
 }
 
 // ModelAlias is a per-user local alias: call `Alias` and it routes to `Target`.

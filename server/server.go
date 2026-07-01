@@ -34,6 +34,7 @@ type Deps struct {
 	Music      store.MusicStore
 	SettingsKV store.SettingsStore
 	Aliases    store.AliasStore
+	ApiTest    store.ApiTestStore
 	Tunnel     *tunnel.Manager
 	Sync       *syncpkg.Manager
 	Doer       transport.Doer
@@ -61,6 +62,7 @@ func New(addr string, d Deps) *Server {
 	usage := handlers.NewUsage(d.Registry, d.Accounts)
 	models := handlers.NewModels(d.Registry, d.Accounts, d.Sync)
 	aliases := handlers.NewAliases(d.Aliases)
+	apitest := handlers.NewApiTest(d.ApiTest)
 	warmup := handlers.NewWarmup(d.Proxy, d.Registry, d.Accounts, d.Warmups, d.Logs)
 	// Auto-warm newly-added accounts (credit check + test request) before pool.
 	accounts.SetWarmer(warmup)
@@ -98,6 +100,18 @@ func New(addr string, d Deps) *Server {
 		r.Get("/model-aliases", aliases.List)
 		r.Post("/model-aliases", aliases.Set)
 		r.Delete("/model-aliases/{alias}", aliases.Delete)
+
+		r.Get("/apitest", apitest.All)
+		r.Post("/apitest/collections", apitest.AddCollection)
+		r.Patch("/apitest/collections/{id}", apitest.RenameCollection)
+		r.Delete("/apitest/collections/{id}", apitest.DeleteCollection)
+		r.Post("/apitest/requests", apitest.SaveRequest)
+		r.Delete("/apitest/requests/{id}", apitest.DeleteRequest)
+		r.Post("/apitest/environments", apitest.SaveEnvironment)
+		r.Delete("/apitest/environments/{id}", apitest.DeleteEnvironment)
+		r.Post("/apitest/environments/{id}/activate", apitest.ActivateEnvironment)
+		r.Post("/apitest/history", apitest.AddHistory)
+		r.Delete("/apitest/history", apitest.ClearHistory)
 		r.Post("/accounts/{id}/warmup", warmup.Run)
 		r.Get("/warmup-logs", warmup.List)
 		r.Delete("/warmup-logs", warmup.Clear)
