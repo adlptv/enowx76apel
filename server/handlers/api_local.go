@@ -8,9 +8,15 @@ import (
 )
 
 // Local imports accounts from credentials that installed IDEs/CLIs wrote to disk.
-type Local struct{ store store.AccountStore }
+type Local struct {
+	store  store.AccountStore
+	warmer Warmer
+}
 
 func NewLocal(s store.AccountStore) *Local { return &Local{store: s} }
+
+// SetWarmer enables automatic warmup of imported accounts.
+func (h *Local) SetWarmer(w Warmer) { h.warmer = w }
 
 type localSourceDTO struct {
 	Provider string `json:"provider"`
@@ -46,5 +52,9 @@ func (h *Local) Import(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"id": id})
+	out := map[string]any{"id": id}
+	if warm := autoWarm(r.Context(), h.warmer, h.store, id); warm != nil {
+		out["warmup"] = warm
+	}
+	writeData(w, out)
 }

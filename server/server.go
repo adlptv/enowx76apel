@@ -62,6 +62,10 @@ func New(addr string, d Deps) *Server {
 	models := handlers.NewModels(d.Registry, d.Accounts, d.Sync)
 	aliases := handlers.NewAliases(d.Aliases)
 	warmup := handlers.NewWarmup(d.Proxy, d.Registry, d.Accounts, d.Warmups, d.Logs)
+	// Auto-warm newly-added accounts (credit check + test request) before pool.
+	accounts.SetWarmer(warmup)
+	kiro.SetWarmer(warmup)
+	local.SetWarmer(warmup)
 	dash := middleware.NewDashboard(d.SettingsKV)
 	term := handlers.NewTerminal(dash)
 	files := handlers.NewFiles(dash)

@@ -12,9 +12,15 @@ import (
 )
 
 // Accounts is the management API over the credential pool.
-type Accounts struct{ store store.AccountStore }
+type Accounts struct {
+	store  store.AccountStore
+	warmer Warmer
+}
 
 func NewAccounts(s store.AccountStore) *Accounts { return &Accounts{store: s} }
+
+// SetWarmer enables automatic warmup of newly-added accounts.
+func (h *Accounts) SetWarmer(w Warmer) { h.warmer = w }
 
 type accountDTO struct {
 	ID        int64    `json:"id"`
@@ -88,7 +94,13 @@ func (h *Accounts) Add(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"id": id})
+	// Auto-warmup before the account enters the pool (credit check + test
+	// request); the result is included so the UI can show it immediately.
+	out := map[string]any{"id": id}
+	if warm := autoWarm(r.Context(), h.warmer, h.store, id); warm != nil {
+		out["warmup"] = warm
+	}
+	writeData(w, out)
 }
 
 type setStatusReq struct {

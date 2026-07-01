@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -13,6 +14,33 @@ import (
 	"github.com/enowdev/enowx/core/proxy"
 	"github.com/enowdev/enowx/store"
 )
+
+// Warmer runs an automatic warmup on a freshly-added account (credit check +
+// test request) and sets its status before it enters the pool. The Warmup
+// handler implements it.
+type Warmer interface {
+	WarmAccount(ctx context.Context, acc *store.Account) (status string, resp map[string]any)
+}
+
+// autoWarm looks up a just-added account and warms it up (if a Warmer is wired),
+// returning the warmup response for inclusion in the add reply. Best-effort: on
+// any lookup failure it returns nil and the account keeps its saved status.
+func autoWarm(ctx context.Context, warmer Warmer, st store.AccountStore, id int64) map[string]any {
+	if warmer == nil {
+		return nil
+	}
+	rows, err := st.List(ctx, "")
+	if err != nil {
+		return nil
+	}
+	for i := range rows {
+		if rows[i].ID == id {
+			_, resp := warmer.WarmAccount(ctx, &rows[i])
+			return resp
+		}
+	}
+	return nil
+}
 
 // Warmup sends a real probe request to the upstream to verify an account is
 // alive, updates its status from the outcome, and fetches credit usage when the
@@ -64,14 +92,24 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, resp := h.WarmAccount(r.Context(), acc)
+	writeData(w, resp)
+}
+
+// WarmAccount runs a warmup on an account: a credit check (when the provider
+// supports it) plus a real test request, sets the account's status from the
+// outcome, and records warmup + request logs. Returns the new status and a
+// response map (same shape the Run endpoint returns). Reused for the automatic
+// warmup performed when an account is added.
+func (h *Warmup) WarmAccount(ctx context.Context, acc *store.Account) (string, map[string]any) {
 	pacc := provider.Account{ID: acc.ID, Secret: acc.Secret, Creds: acc.Creds}
 	req := warmupRequest(acc.Provider)
 
 	start := time.Now()
-	res := h.proxy.Probe(r.Context(), acc.Provider, pacc, req)
+	res := h.proxy.Probe(ctx, acc.Provider, pacc, req)
 	durMS := time.Since(start).Milliseconds()
 	status := statusFromOutcome(res.Outcome)
-	_ = h.store.SetStatus(r.Context(), acc.ID, status)
+	_ = h.store.SetStatus(ctx, acc.ID, status)
 
 	resp := map[string]any{
 		"ok":     res.Outcome == provider.OutcomeOK,
@@ -117,7 +155,7 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 		if res.Outcome != provider.OutcomeOK {
 			logStatus = "error"
 		}
-		_ = h.reqLogs.Insert(r.Context(), store.RequestLog{
+		_ = h.reqLogs.Insert(ctx, store.RequestLog{
 			Provider:  acc.Provider,
 			Model:     req.Model,
 			Status:    logStatus,
@@ -128,7 +166,7 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_ = h.logs.Insert(r.Context(), store.WarmupLog{
+	_ = h.logs.Insert(ctx, store.WarmupLog{
 		AccountID:  acc.ID,
 		Provider:   acc.Provider,
 		Label:      acc.Label,
@@ -141,7 +179,7 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 		DurationMS: durMS,
 	})
 
-	writeData(w, resp)
+	return status, resp
 }
 
 func statusFromOutcome(o provider.Outcome) string {

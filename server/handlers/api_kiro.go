@@ -15,14 +15,18 @@ import (
 // Kiro handles the provider-specific add flows: manual paste, refresh token,
 // AWS device-code, and social OAuth.
 type Kiro struct {
-	doer  transport.Doer
-	store store.AccountStore
+	doer   transport.Doer
+	store  store.AccountStore
+	warmer Warmer
 
 	mu    sync.Mutex
 	aws   map[string]*awsSession
 	oauth map[string]*oauthSession
 	seq   int64
 }
+
+// SetWarmer enables automatic warmup of newly-added kiro accounts.
+func (h *Kiro) SetWarmer(w Warmer) { h.warmer = w }
 
 type awsSession struct {
 	client     *kiro.AWSClient
@@ -61,7 +65,11 @@ func (h *Kiro) save(w http.ResponseWriter, r *http.Request, label string, creds 
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"id": id})
+	out := map[string]any{"id": id}
+	if warm := autoWarm(r.Context(), h.warmer, h.store, id); warm != nil {
+		out["warmup"] = warm
+	}
+	writeData(w, out)
 }
 
 // POST /api/accounts/kiro/manual  { "json": "<pasted auth json>", "label": "" }
@@ -100,7 +108,11 @@ func (h *Kiro) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"id": id})
+	out := map[string]any{"id": id}
+	if warm := autoWarm(r.Context(), h.warmer, h.store, id); warm != nil {
+		out["warmup"] = warm
+	}
+	writeData(w, out)
 }
 
 // POST /api/accounts/kiro/aws/start  { "region": "", "auth_method": "builder-id|idc", "start_url": "" }
@@ -166,7 +178,11 @@ func (h *Kiro) AWSPoll(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeData(w, map[string]any{"status": "done", "id": id})
+	out := map[string]any{"status": "done", "id": id}
+	if warm := autoWarm(r.Context(), h.warmer, h.store, id); warm != nil {
+		out["warmup"] = warm
+	}
+	writeData(w, out)
 }
 
 // POST /api/accounts/kiro/oauth/start -> {session, authorize_url}
