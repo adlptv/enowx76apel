@@ -18,6 +18,12 @@ func NewSync(mgr *syncpkg.Manager) *Sync { return &Sync{mgr: mgr} }
 
 func (h *Sync) Status(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Refresh the cached identity from /me when logged in, so the client always
+	// gets the complete, current shape (top_role, entitlements, etc.) rather than
+	// the trimmed user DTO stashed at login. Falls back to the cache on failure.
+	if h.mgr.Configured(ctx) {
+		_, _ = h.mgr.Me(ctx)
+	}
 	var user any
 	if u := h.mgr.UserJSON(ctx); u != "" {
 		_ = json.Unmarshal([]byte(u), &user)
