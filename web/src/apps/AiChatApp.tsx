@@ -81,12 +81,15 @@ export function AiChatApp() {
     });
   };
 
-  useEffect(() => {
+  const loadModels = () =>
     accountsApi.allModels().then((r) => {
       const list = (r.models ?? []).filter((m) => m.type !== "image");
       setModels(list);
       setModel((cur) => cur || (list[0]?.model_id ?? ""));
     }).catch(() => {});
+
+  useEffect(() => {
+    loadModels();
     keysApi.list().then((keys) => {
       const k = keys.find((x) => x.enabled && x.secret);
       if (k) setApiKey(k.secret);
@@ -335,7 +338,7 @@ export function AiChatApp() {
           <div className="flex items-center gap-1.5 px-2 pb-2">
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pickImages(e.target.files); e.target.value = ""; }} />
             <button onClick={() => fileRef.current?.click()} title="Attach image" className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"><Plus className="h-4 w-4" /></button>
-            <ModelPicker current={current?.name || model} open={pickerOpen} setOpen={setPickerOpen} filter={filter} setFilter={setFilter} models={shownModels} model={model} setModel={setModel} up />
+            <ModelPicker current={current?.name || model} open={pickerOpen} setOpen={(v) => { if (v) loadModels(); setPickerOpen(v); }} filter={filter} setFilter={setFilter} models={shownModels} model={model} setModel={setModel} up />
             <button onClick={() => setAgentMode((v) => !v)} title="Toggle coding-agent tools" className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${agentMode ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/10 text-white/50 hover:text-white/80"}`}>
               <Wrench className="h-3.5 w-3.5" /> Agent
             </button>
