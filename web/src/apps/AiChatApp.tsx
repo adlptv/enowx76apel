@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Send, Trash2, Loader2, Bot, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2 } from "lucide-react";
+import { Send, Trash2, Loader2, Bot, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2, Plus } from "lucide-react";
 import { accountsApi, keysApi, filesApi, type ProviderModel, type DirListing } from "../lib/api";
 import { Markdown } from "../components/Markdown";
 import { TOOL_SCHEMAS, TOOL_META, GROUPABLE_TOOLS, GROUP_VERB, lineDiff, runTool, needsApproval, type PermLevel, type ToolName, type ToolResult } from "./agent/tools";
@@ -18,6 +18,7 @@ interface ToolCall {
 interface ChatMsg {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  images?: string[]; // user attachments as data URLs (vision)
   tool_calls?: ToolCall[]; // assistant turn requesting tools
   tool_call_id?: string; // tool result → which call
   name?: string; // tool result → tool name
@@ -63,9 +64,21 @@ export function AiChatApp() {
   const [sysPrompt, setSysPrompt] = useState(() => load<string>(LS.sys, DEFAULT_SYSTEM));
   const [showSys, setShowSys] = useState(false);
   const [showBrowser, setShowBrowser] = useState(false);
+  const [attachments, setAttachments] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pickImages = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).slice(0, 4).forEach((f) => {
+      if (!f.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = () => setAttachments((p) => [...p, String(reader.result)].slice(0, 6));
+      reader.readAsDataURL(f);
+    });
+  };
 
   useEffect(() => {
     accountsApi.allModels().then((r) => {
@@ -112,6 +125,13 @@ export function AiChatApp() {
         };
       }
       if (m.role === "tool") return { role: "tool", tool_call_id: m.tool_call_id, content: m.content };
+      if (m.role === "user" && m.images?.length) {
+        // Multimodal user content: text + image_url parts (vision models).
+        const parts: any[] = [];
+        if (m.content) parts.push({ type: "text", text: m.content });
+        for (const url of m.images) parts.push({ type: "image_url", image_url: { url } });
+        return { role: "user", content: parts };
+      }
       return { role: m.role, content: m.content };
     });
   }
@@ -196,15 +216,17 @@ export function AiChatApp() {
 
   async function send() {
     const text = input.trim();
-    if (!text || busy || !model) return;
+    if ((!text && attachments.length === 0) || busy || !model) return;
     if (agentMode && !cwd.trim()) { setErr("Set a working directory first."); return; }
     setErr("");
     setInput("");
+    const imgs = attachments;
+    setAttachments([]);
 
     const ac = new AbortController();
     abortRef.current = ac;
     setBusy(true);
-    let history: ChatMsg[] = [...msgs, { role: "user", content: text }];
+    let history: ChatMsg[] = [...msgs, { role: "user", content: text, images: imgs.length ? imgs : undefined }];
     setMsgs(history);
 
     try {
@@ -254,32 +276,10 @@ export function AiChatApp() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[var(--window-bg)]/80">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/5 px-3 py-2">
-        <ModelPicker current={current?.name || model} open={pickerOpen} setOpen={setPickerOpen} filter={filter} setFilter={setFilter} models={shownModels} model={model} setModel={setModel} />
-        <button onClick={() => setAgentMode((v) => !v)} title="Toggle coding-agent tools" className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${agentMode ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/10 text-white/50 hover:text-white/80"}`}>
-          <Wrench className="h-3.5 w-3.5" /> Agent
-        </button>
-        {agentMode && (
-          <>
-            <button onClick={() => setShowBrowser(true)} title="Choose working directory" className="flex max-w-[220px] items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs text-white/80 hover:border-white/25">
-              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-white/40" />
-              <span className="truncate">{cwd || "Choose folder…"}</span>
-            </button>
-            <div className="relative">
-              <button onClick={() => setPermOpen((v) => !v)} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/5">
-                <Shield className="h-3.5 w-3.5 text-white/40" /> {PERM_LABELS[perm]} <ChevronDown className="h-3 w-3 text-white/40" />
-              </button>
-              {permOpen && (
-                <div className="absolute left-0 top-full z-30 mt-1 w-44 rounded-xl border border-white/10 bg-[#0e1016] p-1 shadow-2xl">
-                  {(["need", "medium", "bypass"] as PermLevel[]).map((l) => (
-                    <button key={l} onClick={() => { setPerm(l); setPermOpen(false); }} className={`block w-full rounded px-2 py-1.5 text-left text-xs ${perm === l ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5"}`}>{PERM_LABELS[l]}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+      {/* Header — minimal: title + clear */}
+      <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2">
+        <Bot className="h-4 w-4 text-white/40" />
+        <span className="text-sm font-medium text-white/80">Chat</span>
         <div className="flex-1" />
         <button onClick={() => setShowSys(true)} title="System prompt" className="rounded-lg p-1.5 text-white/40 hover:bg-white/10 hover:text-white"><Settings2 className="h-4 w-4" /></button>
         <button onClick={clear} title="Clear chat" className="rounded-lg p-1.5 text-white/40 hover:bg-white/10 hover:text-white"><Trash2 className="h-4 w-4" /></button>
@@ -302,22 +302,64 @@ export function AiChatApp() {
         {err && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{err}</div>}
       </div>
 
-      {/* Composer */}
-      <div className="border-t border-white/5 p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 focus-within:border-white/25">
+      {/* Composer — textarea on top, controls toolbar beneath */}
+      <div className="p-3">
+        <div className="rounded-xl border border-white/10 bg-black/25 focus-within:border-white/25">
+          {/* Attachment thumbnails */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-b border-white/5 p-2">
+              {attachments.map((src, i) => (
+                <div key={i} className="group relative h-14 w-14 overflow-hidden rounded-lg border border-white/10">
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                  <button onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} className="absolute right-0.5 top-0.5 rounded bg-black/60 p-0.5 text-white/80 opacity-0 group-hover:opacity-100"><X className="h-3 w-3" /></button>
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={model ? (agentMode ? "Ask the agent to do something…" : "Send a message…") : "Add an account to get models"}
-            rows={1}
-            className="max-h-40 flex-1 resize-none bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+            onPaste={(e) => { const imgs = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); pickImages(e.clipboardData.files); } }}
+            placeholder={model ? "What would you like to work on?" : "Add an account to get models"}
+            rows={2}
+            className="max-h-40 w-full resize-none bg-transparent px-3 pt-2.5 text-sm text-white outline-none placeholder:text-white/30"
           />
-          {busy ? (
-            <button onClick={stop} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15">Stop</button>
-          ) : (
-            <button onClick={send} disabled={!input.trim() || !model} className="flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-black hover:opacity-90 disabled:opacity-40"><Send className="h-4 w-4" /></button>
-          )}
+          {/* Toolbar */}
+          <div className="flex items-center gap-1.5 px-2 pb-2">
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { pickImages(e.target.files); e.target.value = ""; }} />
+            <button onClick={() => fileRef.current?.click()} title="Attach image" className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-white/60 hover:bg-white/5 hover:text-white"><Plus className="h-4 w-4" /></button>
+            <ModelPicker current={current?.name || model} open={pickerOpen} setOpen={setPickerOpen} filter={filter} setFilter={setFilter} models={shownModels} model={model} setModel={setModel} up />
+            <button onClick={() => setAgentMode((v) => !v)} title="Toggle coding-agent tools" className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${agentMode ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/10 text-white/50 hover:text-white/80"}`}>
+              <Wrench className="h-3.5 w-3.5" /> Agent
+            </button>
+            {agentMode && (
+              <>
+                <button onClick={() => setShowBrowser(true)} title="Working directory" className="flex max-w-[160px] items-center gap-1.5 rounded-lg border border-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/5">
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                  <span className="truncate">{cwd ? cwd.split("/").pop() : "Folder"}</span>
+                </button>
+                <div className="relative">
+                  <button onClick={() => setPermOpen((v) => !v)} className="flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/5">
+                    <Shield className="h-3.5 w-3.5 text-white/40" /> {PERM_LABELS[perm]} <ChevronDown className="h-3 w-3 text-white/40" />
+                  </button>
+                  {permOpen && (
+                    <div className="absolute bottom-full left-0 z-30 mb-1 w-44 rounded-xl border border-white/10 bg-[#0e1016] p-1 shadow-2xl">
+                      {(["need", "medium", "bypass"] as PermLevel[]).map((l) => (
+                        <button key={l} onClick={() => { setPerm(l); setPermOpen(false); }} className={`block w-full rounded px-2 py-1.5 text-left text-xs ${perm === l ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5"}`}>{PERM_LABELS[l]}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            <div className="flex-1" />
+            {busy ? (
+              <button onClick={stop} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15">Stop</button>
+            ) : (
+              <button onClick={send} disabled={(!input.trim() && attachments.length === 0) || !model} className="flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-black hover:opacity-90 disabled:opacity-40"><Send className="h-4 w-4" /></button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -330,19 +372,19 @@ function replaceLast(list: ChatMsg[], msg: ChatMsg): ChatMsg[] {
   return next;
 }
 
-function ModelPicker({ current, open, setOpen, filter, setFilter, models, model, setModel }: {
+function ModelPicker({ current, open, setOpen, filter, setFilter, models, model, setModel, up }: {
   current: string; open: boolean; setOpen: (v: boolean) => void; filter: string; setFilter: (v: string) => void;
-  models: ProviderModel[]; model: string; setModel: (v: string) => void;
+  models: ProviderModel[]; model: string; setModel: (v: string) => void; up?: boolean;
 }) {
   return (
     <div className="relative">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs text-white hover:border-white/25">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs text-white hover:border-white/25">
         <Bot className="h-3.5 w-3.5 text-white/50" />
-        <span className="max-w-[200px] truncate">{current || "Select model"}</span>
+        <span className="max-w-[180px] truncate">{current || "Select model"}</span>
         <ChevronDown className="h-3.5 w-3.5 text-white/40" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-hidden rounded-xl border border-white/10 bg-[#0e1016] shadow-2xl">
+        <div className={`absolute left-0 z-20 max-h-72 w-72 overflow-hidden rounded-xl border border-white/10 bg-[#0e1016] shadow-2xl ${up ? "bottom-full mb-1" : "top-full mt-1"}`}>
           <input autoFocus value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter models…" className="w-full border-b border-white/5 bg-transparent px-3 py-2 text-xs text-white outline-none placeholder:text-white/30" />
           <div className="max-h-60 overflow-y-auto p-1">
             {models.length === 0 && <div className="px-2 py-3 text-center text-[11px] text-white/40">No models. Add an account first.</div>}
@@ -364,7 +406,7 @@ function ModelPicker({ current, open, setOpen, filter, setFilter, models, model,
 // across the WHOLE conversation so grouping spans agentic steps (not just one
 // message), avoiding a spam of "Read N files" blocks.
 type RenderItem =
-  | { kind: "user"; content: string; key: string }
+  | { kind: "user"; content: string; images?: string[]; key: string }
   | { kind: "text"; content: string; key: string }
   | { kind: "spinner"; key: string }
   | { kind: "tool"; call: ToolCall; result?: ToolResult; key: string }
@@ -385,7 +427,7 @@ function buildItems(msgs: ChatMsg[]): RenderItem[] {
   };
   msgs.forEach((m, i) => {
     if (m.role === "tool") return;
-    if (m.role === "user") { flushRun(); items.push({ kind: "user", content: m.content, key: `u_${i}` }); return; }
+    if (m.role === "user") { flushRun(); items.push({ kind: "user", content: m.content, images: m.images, key: `u_${i}` }); return; }
     // assistant
     if (m.content) { flushRun(); items.push({ kind: "text", content: m.content, key: `a_${i}` }); }
     else if (!m.tool_calls?.length) { flushRun(); items.push({ kind: "spinner", key: `s_${i}` }); }
@@ -415,7 +457,14 @@ function Conversation({ msgs }: { msgs: ChatMsg[] }) {
           case "user":
             return (
               <div key={it.key} className="flex justify-end">
-                <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl bg-indigo-500/90 px-3.5 py-2 text-sm text-white">{it.content}</div>
+                <div className="flex max-w-[85%] flex-col items-end gap-1.5">
+                  {it.images && it.images.length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {it.images.map((src, k) => <img key={k} src={src} alt="" className="h-24 w-24 rounded-lg border border-white/10 object-cover" />)}
+                    </div>
+                  )}
+                  {it.content && <div className="whitespace-pre-wrap break-words rounded-2xl bg-indigo-500/90 px-3.5 py-2 text-sm text-white">{it.content}</div>}
+                </div>
               </div>
             );
           case "text":
