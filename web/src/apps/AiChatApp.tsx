@@ -237,6 +237,28 @@ export function AiChatApp() {
     let history: ChatMsg[] = [...msgs, { role: "user", content: text, images: imgs.length ? imgs : undefined }];
     setMsgs(history);
 
+    // Image-generation models use a different endpoint + render the result inline.
+    if (current?.type === "image") {
+      try {
+        const res = await fetch("/v1/images/generations", {
+          method: "POST",
+          signal: ac.signal,
+          headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+          body: JSON.stringify({ model, prompt: text, n: 1, size: "1024x1024" }),
+        });
+        if (!res.ok) throw new Error((await res.text().catch(() => "")) || `request failed (${res.status})`);
+        const j = await res.json();
+        const srcs = (j.data ?? []).map((d: { b64_json?: string; url?: string }) => (d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url)).filter(Boolean) as string[];
+        setMsgs((p) => [...p, { role: "assistant", content: "", images: srcs }]);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") setErr(e instanceof Error ? e.message : "failed");
+      } finally {
+        setBusy(false);
+        abortRef.current = null;
+      }
+      return;
+    }
+
     try {
       for (let step = 0; step < MAX_STEPS; step++) {
         const assistant = await callModel(history, ac);
@@ -417,6 +439,7 @@ function ModelPicker({ current, open, setOpen, filter, setFilter, models, model,
 type RenderItem =
   | { kind: "user"; content: string; images?: string[]; key: string }
   | { kind: "reasoning"; content: string; key: string }
+  | { kind: "aimages"; images: string[]; key: string }
   | { kind: "text"; content: string; key: string }
   | { kind: "spinner"; key: string }
   | { kind: "tool"; call: ToolCall; result?: ToolResult; key: string }
@@ -440,8 +463,9 @@ function buildItems(msgs: ChatMsg[]): RenderItem[] {
     if (m.role === "user") { flushRun(); items.push({ kind: "user", content: m.content, images: m.images, key: `u_${i}` }); return; }
     // assistant
     if (m.reasoning) { flushRun(); items.push({ kind: "reasoning", content: m.reasoning, key: `r_${i}` }); }
+    if (m.images?.length) { flushRun(); items.push({ kind: "aimages", images: m.images, key: `ai_${i}` }); }
     if (m.content) { flushRun(); items.push({ kind: "text", content: m.content, key: `a_${i}` }); }
-    else if (!m.reasoning && !m.tool_calls?.length) { flushRun(); items.push({ kind: "spinner", key: `s_${i}` }); }
+    else if (!m.reasoning && !m.images?.length && !m.tool_calls?.length) { flushRun(); items.push({ kind: "spinner", key: `s_${i}` }); }
     for (const c of m.tool_calls ?? []) {
       const result = m.results?.[c.id];
       if (GROUPABLE_TOOLS.has(c.name as ToolName)) run.push({ call: c, result });
@@ -494,6 +518,16 @@ function Conversation({ msgs }: { msgs: ChatMsg[] }) {
             );
           case "reasoning":
             return <ReasoningBlock key={it.key} content={it.content} />;
+          case "aimages":
+            return (
+              <div key={it.key} className="flex flex-wrap gap-2">
+                {it.images.map((src, k) => (
+                  <a key={k} href={src} target="_blank" rel="noreferrer">
+                    <img src={src} alt="" className="max-h-72 rounded-lg border border-white/10 object-contain" />
+                  </a>
+                ))}
+              </div>
+            );
           case "text":
             return <TextBlock key={it.key} content={it.content} />;
           case "spinner":

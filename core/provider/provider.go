@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/enowdev/enowx/core/model"
+	"github.com/enowdev/enowx/core/transport"
 )
 
 // Account is the credential a provider needs to build a request. Secret is the
@@ -83,6 +84,34 @@ type UsageReporter interface {
 // be labelled by email.
 type EmailReporter interface {
 	Email(acc Account) string
+}
+
+// ImageRequest is a normalized text-to-image request.
+type ImageRequest struct {
+	Model          string
+	Prompt         string
+	Size           string
+	Quality        string
+	ResponseFormat string // "b64_json" | "url"
+	N              int
+}
+
+// ImageData is one generated image (either a URL or base64 data).
+type ImageData struct {
+	URL     string `json:"url,omitempty"`
+	B64JSON string `json:"b64_json,omitempty"`
+}
+
+// ImageResult is the outcome of an image generation.
+type ImageResult struct {
+	Images []ImageData
+	Credit float64
+}
+
+// ImageGenerator is an optional capability: providers that can generate images
+// implement it. The provider runs its own request via the passed doer.
+type ImageGenerator interface {
+	GenerateImage(doer transport.Doer, acc Account, req ImageRequest) (*ImageResult, error)
 }
 
 // Model is one model a provider account can access.

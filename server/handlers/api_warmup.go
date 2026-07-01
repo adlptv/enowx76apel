@@ -123,6 +123,7 @@ func (h *Warmup) TestModel(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Model string `json:"model"`
+		Type  string `json:"type"`
 	}
 	body, _ := io.ReadAll(r.Body)
 	_ = json.Unmarshal(body, &in)
@@ -150,6 +151,13 @@ func (h *Warmup) TestModel(w http.ResponseWriter, r *http.Request) {
 
 	// The picker sends the prefixed id (e.g. cx/gpt-5.4); strip it for upstream.
 	_, bare := proxy.SplitModel(in.Model)
+
+	// Image models use the image-generation path.
+	if in.Type == "image" {
+		h.testImage(w, r, acc, in.Model, bare)
+		return
+	}
+
 	pacc := provider.Account{ID: acc.ID, Secret: acc.Secret, Creds: acc.Creds}
 	req := probeRequest(acc.Provider, bare)
 
@@ -188,6 +196,28 @@ func (h *Warmup) TestModel(w http.ResponseWriter, r *http.Request) {
 		resp["error"] = res.Err.Error()
 	}
 	writeData(w, resp)
+}
+
+// testImage runs a tiny image-generation probe and logs it.
+func (h *Warmup) testImage(w http.ResponseWriter, r *http.Request, acc *store.Account, displayModel, bare string) {
+	start := time.Now()
+	_, err := h.proxy.GenerateImage(r.Context(), acc.Provider, provider.ImageRequest{Model: bare, Prompt: "a small red circle", N: 1, Size: "512x512"})
+	durMS := time.Since(start).Milliseconds()
+
+	logStatus := "success"
+	if err != nil {
+		logStatus = "error"
+	}
+	if h.reqLogs != nil {
+		_ = h.reqLogs.Insert(r.Context(), store.RequestLog{
+			Provider: acc.Provider, Model: displayModel, Status: logStatus, Source: "test", LatencyMS: durMS,
+		})
+	}
+	if err != nil {
+		writeData(w, map[string]any{"ok": false, "model": displayModel, "latency": durMS, "error": err.Error()})
+		return
+	}
+	writeData(w, map[string]any{"ok": true, "model": displayModel, "latency": durMS, "response": "image generated"})
 }
 
 // WarmAccount runs a warmup on an account: a credit check (when the provider

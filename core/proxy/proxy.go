@@ -55,6 +55,24 @@ func (p *Proxy) Forward(ctx context.Context, providerName string, req *model.Req
 	return prov.ParseResponse(resp, req)
 }
 
+// GenerateImage runs a text-to-image request against the named provider (which
+// must implement ImageGenerator), picking an account from the pool.
+func (p *Proxy) GenerateImage(ctx context.Context, providerName string, req provider.ImageRequest) (*provider.ImageResult, error) {
+	prov, err := p.reg.Get(providerName)
+	if err != nil {
+		return nil, err
+	}
+	gen, ok := prov.(provider.ImageGenerator)
+	if !ok {
+		return nil, fmt.Errorf("provider %s does not support image generation", providerName)
+	}
+	acc, err := p.pool.Pick(ctx, providerName)
+	if err != nil {
+		return nil, err
+	}
+	return gen.GenerateImage(p.doer, acc, req)
+}
+
 // ProbeResult captures what a warmup probe sent and got back.
 type ProbeResult struct {
 	Outcome  provider.Outcome

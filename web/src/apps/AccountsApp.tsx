@@ -307,7 +307,7 @@ function ModelRow({ m, accountId, aliases, onAddAlias, onRemoveAlias }: { m: Pro
     setTesting(true);
     setResult(null);
     try {
-      const r = await accountsApi.testModel(accountId, m.model_id);
+      const r = await accountsApi.testModel(accountId, m.model_id, m.type);
       setResult({ ok: r.ok, text: r.ok ? `${(r.response || "ok").slice(0, 80)} · ${r.latency}ms` : (r.error || "failed") });
     } catch (e) {
       setResult({ ok: false, text: e instanceof Error ? e.message : "failed" });

@@ -417,6 +417,7 @@ export function ApiTestApp() {
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3">
             {err && <div className="mb-2 rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-300">{err}</div>}
+            {resBody && <ResponseImages body={resBody} />}
             {resBody ? (
               <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-white/85">{resBody}</pre>
             ) : (
@@ -581,6 +582,33 @@ function EnvRow({ env, onChange }: { env: ApiEnvironment; onChange: () => void }
     <div className="group flex items-center gap-1">
       <button onClick={() => apitestApi.activateEnv(env.id).then(onChange)} className={`flex-1 rounded px-2 py-1 text-left text-xs ${env.active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5"}`}>{env.name}</button>
       <button onClick={() => setEditing(true)} className="text-white/30 opacity-0 hover:text-white group-hover:opacity-100"><History className="h-3 w-3 rotate-90" /></button>
+    </div>
+  );
+}
+
+// ResponseImages renders any images found in an OpenAI-style image response
+// (data[].b64_json or data[].url) as thumbnails above the raw body.
+function ResponseImages({ body }: { body: string }) {
+  const srcs = (() => {
+    try {
+      const j = JSON.parse(body);
+      const data = j?.data;
+      if (!Array.isArray(data)) return [];
+      return data
+        .map((d: { b64_json?: string; url?: string }) => (d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url))
+        .filter(Boolean) as string[];
+    } catch {
+      return [];
+    }
+  })();
+  if (srcs.length === 0) return null;
+  return (
+    <div className="mb-2 flex flex-wrap gap-2">
+      {srcs.map((s, i) => (
+        <a key={i} href={s} target="_blank" rel="noreferrer">
+          <img src={s} alt="" className="max-h-48 rounded-lg border border-white/10 object-contain" />
+        </a>
+      ))}
     </div>
   );
 }

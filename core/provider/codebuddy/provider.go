@@ -21,7 +21,7 @@ type Provider struct{ ids identifiers }
 func New() *Provider { return &Provider{} }
 
 func (p *Provider) Name() string        { return "codebuddy" }
-func (p *Provider) Caps() provider.Caps { return provider.Caps{Chat: true} }
+func (p *Provider) Caps() provider.Caps { return provider.Caps{Chat: true, Images: true} }
 
 func (p *Provider) BuildRequest(req *model.Request, acc provider.Account) (*http.Request, error) {
 	r, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(convert.OpenAIBody(req)))

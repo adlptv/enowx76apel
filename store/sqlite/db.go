@@ -77,6 +77,12 @@ func seedApiTest(db *sql.DB) {
   "system": "You are a helpful assistant.",
   "messages": [{ "role": "user", "content": "hi" }]
 }`
+	imageBody := `{
+  "model": "cb/gemini-2.5-flash-image",
+  "prompt": "a red bicycle on a sunny street",
+  "n": 1,
+  "size": "1024x1024"
+}`
 	// Gateway samples use {{base_url}} + a Bearer {{api_key}} so the built-in
 	// "Local" environment supplies both — no magic auto-key injection.
 	const base = "{{base_url}}"
@@ -84,7 +90,8 @@ func seedApiTest(db *sql.DB) {
 	stmt := `INSERT INTO apitest_requests (collection_id, name, method, base_url, url, body, body_type, auth, sort) VALUES (?,?,?,?,?,?,?,?,?)`
 	db.Exec(stmt, cid, "Chat Completions", "POST", base, "/v1/chat/completions", chatBody, "json", auth, 0)
 	db.Exec(stmt, cid, "Anthropic Messages", "POST", base, "/anthropic/v1/messages", anthBody, "json", auth, 1)
-	db.Exec(stmt, cid, "List accounts", "GET", base, "/api/accounts", "", "none", auth, 2)
+	db.Exec(stmt, cid, "Image Generation", "POST", base, "/v1/images/generations", imageBody, "json", auth, 2)
+	db.Exec(stmt, cid, "List accounts", "GET", base, "/api/accounts", "", "none", auth, 4)
 	db.Exec(stmt, cid, "List models", "GET", base, "/api/models", "", "none", auth, 3)
 
 	// Built-in "Local" environment: base_url + api_key (from an existing gateway
