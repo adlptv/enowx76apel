@@ -483,6 +483,23 @@ export const modApi = {
   setModerator: (userId: string, on: boolean) => api.post<{ is_moderator: boolean }>(`/api/admin/users/${userId}/moderator`, { on }),
 };
 
+export interface Notification {
+  id: number;
+  type: "reply" | "upvote" | "reaction" | "mention";
+  actor_id: string;
+  actor_name: string;
+  ref_type: string;
+  ref_id: number;
+  preview: string;
+  read: boolean;
+  created_at: string;
+}
+
+export const notifApi = {
+  list: () => api.get<{ notifications: Notification[]; unread: number }>("/api/notifications"),
+  markRead: () => api.post<{ ok: boolean }>("/api/notifications/read"),
+};
+
 // PublicProfile is what other members can see (social data only — no secrets).
 export interface PublicProfile {
   id: string;

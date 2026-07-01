@@ -300,6 +300,24 @@ func (m *Manager) CommentAction(ctx context.Context, method, id, suffix string, 
 	return string(raw), nil
 }
 
+// Notifications fetches the user's notifications + unread count.
+func (m *Manager) Notifications(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/notifications", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// NotificationsRead marks all notifications read.
+func (m *Manager) NotificationsRead(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/notifications/read", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // AdminFlags fetches the moderator duplicate-account review queue.
 func (m *Manager) AdminFlags(ctx context.Context) (string, error) {
 	var raw json.RawMessage

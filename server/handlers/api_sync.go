@@ -209,6 +209,18 @@ func (h *Sync) CommentReact(w http.ResponseWriter, r *http.Request) {
 	proxyJSON(w, out, err)
 }
 
+// Notifications proxies the user's notifications.
+func (h *Sync) Notifications(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.Notifications(r.Context())
+	proxyJSON(w, out, err)
+}
+
+// NotificationsRead proxies marking notifications read.
+func (h *Sync) NotificationsRead(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.NotificationsRead(r.Context())
+	proxyJSON(w, out, err)
+}
+
 // AdminFlags proxies the moderator duplicate-account review queue.
 func (h *Sync) AdminFlags(w http.ResponseWriter, r *http.Request) {
 	raw, err := h.mgr.AdminFlags(r.Context())

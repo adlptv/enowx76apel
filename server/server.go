@@ -148,6 +148,8 @@ func New(addr string, d Deps) *Server {
 		r.Delete("/chat/messages/{id}", syncH.ChatDelete)
 		r.Post("/chat/messages/{id}/reactions", syncH.ChatReact)
 		r.Get("/chat/stream", syncH.ChatStream)
+		r.Get("/notifications", syncH.Notifications)
+		r.Post("/notifications/read", syncH.NotificationsRead)
 
 		r.Get("/tunnel/status", tun.Status)
 		r.Post("/tunnel/enable", tun.Enable)

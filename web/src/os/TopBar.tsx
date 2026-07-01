@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { SystemStats } from "./SystemStats";
 import { TopBarNowPlaying } from "./TopBarNowPlaying";
+import { NotifBell } from "./NotifBell";
 
 export function TopBar({ nav }: { nav?: ReactNode }) {
   const [clock, setClock] = useState("--:--");
@@ -21,6 +22,7 @@ export function TopBar({ nav }: { nav?: ReactNode }) {
       {nav}
       <TopBarNowPlaying />
       <div className="ml-auto flex shrink-0 items-center gap-3">
+        <NotifBell />
         <SystemStats />
         <span className="tabular-nums text-white/70">{clock}</span>
       </div>
