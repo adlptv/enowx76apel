@@ -11,6 +11,7 @@ import { TerminalLayer } from "./TerminalLayer";
 import { AppsDrawer } from "./AppsDrawer";
 import { Tooltip } from "../components/Tooltip";
 import { ProfileViewer } from "../apps/ProfileViewer";
+import { PostDetail } from "../apps/PostsApp";
 import { Lightbox } from "../components/Lightbox";
 import { useProfile } from "./useProfile";
 import { DocsApp } from "../apps/DocsApp";
@@ -133,6 +134,8 @@ export function Desktop() {
 
       {/* Full-page profile overlay (opened via openProfile from anywhere). */}
       <ProfileViewer />
+      {/* Full-page post detail overlay (opened by clicking a post). */}
+      <PostDetail />
       {/* Image lightbox overlay (opened from any thumbnail). */}
       <Lightbox />
 

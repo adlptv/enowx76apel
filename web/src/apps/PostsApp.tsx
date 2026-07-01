@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ChevronUp, Plus, SmilePlus, Pencil, Trash2, MessageSquare, Reply, Search, User, ImagePlus, X } from "lucide-react";
+import { Loader2, ChevronUp, Plus, SmilePlus, Pencil, Trash2, MessageSquare, Reply, Search, User, ImagePlus, X, ArrowLeft } from "lucide-react";
 import { AppShell } from "./shell";
 import { Popover } from "../components/Popover";
 import { ProfileCard } from "../components/ProfileCard";
@@ -8,6 +8,7 @@ import { useProfile } from "../os/useProfile";
 import { useDialog } from "../os/dialog";
 import { useFeed, loadFeed, createPost, upvotePost, reactPost, editPost, deletePost } from "../os/postsBus";
 import { openProfile } from "../os/profileViewer";
+import { openPost, closePost, usePostViewer } from "../os/postViewer";
 import { useImageAttach } from "../os/useImageAttach";
 import { Markdown } from "../components/Markdown";
 import { ImageGrid } from "../components/ImageGrid";
@@ -241,19 +242,26 @@ function Composer({ categories, onClose }: { categories: { key: string; label: s
   );
 }
 
-function PostCard({ p, myUsername }: { p: Post; myUsername?: string }) {
+// PostCard is the feed card: a clickable preview. Clicking anywhere on the card
+// (except the interactive buttons, which stopPropagation) opens the full-page
+// post detail where comments live. `detail` disables the click + shows full body
+// when the same card is rendered inside the detail overlay.
+function PostCard({ p, myUsername, detail = false }: { p: Post; myUsername?: string; detail?: boolean }) {
   const dialog = useDialog();
   const profile = useProfile();
   const mine = !!myUsername && p.username === myUsername;
   const canMod = profile.has("chat.moderate");
   const [openUser, setOpenUser] = useState(false);
   const [picker, setPicker] = useState(false);
-  const [showComments, setShowComments] = useState(false);
   const name = p.display_name || p.username;
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   async function doDelete() {
     const ok = await dialog.confirm({ title: "Delete post?", message: "This can't be undone.", confirmLabel: "Delete" });
-    if (ok) await deletePost(p.id).catch(() => {});
+    if (ok) {
+      await deletePost(p.id).catch(() => {});
+      if (detail) closePost();
+    }
   }
   async function doEdit() {
     const res = await dialog.form({
@@ -268,10 +276,13 @@ function PostCard({ p, myUsername }: { p: Post; myUsername?: string }) {
   }
 
   return (
-    <div className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+    <div
+      onClick={detail ? undefined : () => openPost(p)}
+      className={`flex gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 ${detail ? "" : "cursor-pointer hover:border-white/20 hover:bg-white/[0.04]"}`}
+    >
       {/* Upvote column */}
       <button
-        onClick={() => upvotePost(p.id)}
+        onClick={(e) => { stop(e); upvotePost(p.id); }}
         className={`flex h-fit flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 ${p.upvoted ? "border-amber-400/40 bg-amber-400/15 text-amber-200" : "border-white/10 text-white/60 hover:bg-white/10"}`}
       >
         <ChevronUp className="h-4 w-4" />
@@ -281,7 +292,7 @@ function PostCard({ p, myUsername }: { p: Post; myUsername?: string }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2 text-[11px] text-white/40">
           <span className="rounded-full bg-white/10 px-1.5 py-0.5 uppercase tracking-wide text-white/60">{p.category}</span>
-          <div className="relative">
+          <div className="relative" onClick={stop}>
             <button onClick={() => setOpenUser(true)} className="font-medium text-white/70 hover:underline">{name}</button>
             {openUser && (
               <Popover onClose={() => setOpenUser(false)} anchor="left" className="w-72">
@@ -294,11 +305,16 @@ function PostCard({ p, myUsername }: { p: Post; myUsername?: string }) {
         </div>
 
         <h3 className="text-sm font-semibold text-white">{p.title}</h3>
-        {p.body && <Markdown text={p.body} className="mt-1 break-words text-sm leading-relaxed text-white/75" />}
-        {p.images && p.images.length > 0 && <ImageGrid images={p.images} size="md" />}
+        {p.body && (
+          <Markdown
+            text={p.body}
+            className={`mt-1 break-words text-sm leading-relaxed text-white/75 ${detail ? "" : "line-clamp-3"}`}
+          />
+        )}
+        {p.images && p.images.length > 0 && <div onClick={stop}><ImageGrid images={p.images} size="md" /></div>}
 
         {/* Reactions + actions */}
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex flex-wrap items-center gap-1" onClick={stop}>
           {p.reactions?.map((rx) => (
             <button
               key={rx.emoji}
@@ -318,16 +334,44 @@ function PostCard({ p, myUsername }: { p: Post; myUsername?: string }) {
               </Popover>
             )}
           </div>
-          <button onClick={() => setShowComments((v) => !v)} className="ml-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-white/40 hover:bg-white/10 hover:text-white/70">
-            <MessageSquare className="h-3 w-3" /> {p.comment_count ?? 0}
+          <button
+            onClick={detail ? undefined : () => openPost(p)}
+            className="ml-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-white/40 hover:bg-white/10 hover:text-white/70"
+          >
+            <MessageSquare className="h-3 w-3" /> {p.comment_count ?? 0}{detail ? "" : " comments"}
           </button>
           <div className="ml-auto flex items-center gap-1">
             {mine && <button onClick={doEdit} className="rounded p-1 text-white/40 hover:bg-white/10 hover:text-white"><Pencil className="h-3.5 w-3.5" /></button>}
             {(mine || canMod) && <button onClick={doDelete} className="rounded p-1 text-red-400/70 hover:bg-red-500/15 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" /></button>}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {showComments && <CommentThread postId={p.id} myUsername={myUsername} canMod={canMod} />}
+// PostDetail is the full-page post overlay: the post plus its comment thread.
+// Mounted once in Desktop; driven by the postViewer store.
+export function PostDetail() {
+  const opened = usePostViewer();
+  const { posts } = useFeed();
+  const profile = useProfile();
+  const myUsername = profile.user?.username;
+  const canMod = profile.has("chat.moderate");
+  if (!opened) return null;
+  // Prefer the live post from the feed (so upvotes/reactions/edits reflect here);
+  // fall back to the snapshot if it's not currently in the loaded feed.
+  const post = posts.find((x) => x.id === opened.id) ?? opened;
+  return (
+    <div className="fixed inset-0 z-[10500] flex justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4" onClick={closePost}>
+      <div className="mt-4 h-fit w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <button onClick={closePost} className="mb-2 flex items-center gap-1 text-xs text-white/50 hover:text-white">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to feed
+        </button>
+        <PostCard p={post} myUsername={myUsername} detail />
+        <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <CommentThread postId={post.id} myUsername={myUsername} canMod={canMod} />
+        </div>
       </div>
     </div>
   );
@@ -384,7 +428,8 @@ function CommentThread({ postId, myUsername, canMod }: { postId: number; myUsern
   }
 
   return (
-    <div className="mt-3 space-y-2 border-t border-white/5 pt-3">
+    <div className="space-y-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">Comments</div>
       {comments === null ? (
         <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-white/30" /></div>
       ) : tops.length === 0 ? (
