@@ -301,6 +301,20 @@ func (m *Manager) AdminDeleteModel(ctx context.Context, id string) (string, erro
 	return string(raw), nil
 }
 
+// ModelAliases fetches the alias→model_id map from the cloud (best-effort).
+func (m *Manager) ModelAliases(ctx context.Context) map[string]string {
+	var out struct {
+		Aliases map[string]string `json:"aliases"`
+	}
+	if err := m.call(ctx, http.MethodGet, "/model-aliases", nil, &out); err != nil {
+		return map[string]string{}
+	}
+	if out.Aliases == nil {
+		return map[string]string{}
+	}
+	return out.Aliases
+}
+
 // ProviderModels asks the cloud for a provider's DB-managed model catalog
 // (best-effort; empty on any error, e.g. offline).
 func (m *Manager) ProviderModels(ctx context.Context, providerName string) []CatalogModel {

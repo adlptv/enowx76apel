@@ -4,6 +4,7 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -42,6 +43,11 @@ func New(addr string, d Deps) *Server {
 	r := chi.NewRouter()
 	v1 := handlers.NewV1(d.Proxy, d.Route, d.Logs, d.Keys)
 	anthropic := handlers.NewAnthropic(d.Proxy, d.Route, d.Logs, d.Keys)
+	if d.Sync != nil {
+		resolver := proxy.NewAliasResolver(d.Sync, 5*time.Minute)
+		v1.SetAliasResolver(resolver)
+		anthropic.SetAliasResolver(resolver)
+	}
 	providers := handlers.NewProviders(d.Registry)
 	accounts := handlers.NewAccounts(d.Accounts)
 	requests := handlers.NewRequests(d.Logs)

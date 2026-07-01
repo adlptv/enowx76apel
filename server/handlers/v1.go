@@ -16,15 +16,19 @@ import (
 )
 
 type V1 struct {
-	proxy *proxy.Proxy
-	route func(modelID string) string // model → provider name
-	logs  store.LogStore
-	keys  store.KeyStore
+	proxy    *proxy.Proxy
+	route    func(modelID string) string // model → provider name
+	logs     store.LogStore
+	keys     store.KeyStore
+	resolver *proxy.AliasResolver // optional: alias → real model id
 }
 
 func NewV1(p *proxy.Proxy, route func(string) string, logs store.LogStore, keys store.KeyStore) *V1 {
 	return &V1{proxy: p, route: route, logs: logs, keys: keys}
 }
+
+// SetAliasResolver enables alias resolution on incoming model ids.
+func (h *V1) SetAliasResolver(r *proxy.AliasResolver) { h.resolver = r }
 
 func (h *V1) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -37,6 +41,14 @@ func (h *V1) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
+	}
+	// Resolve an aliased model to its real id (rewriting the raw body too), so
+	// the request routes + reaches upstream as the real model.
+	if h.resolver != nil {
+		if real := h.resolver.Resolve(r.Context(), req.Model); real != req.Model {
+			req.Raw = proxy.RewriteBody(req.Raw, req.Model, real)
+			req.Model = real
+		}
 	}
 	providerName := h.route(req.Model)
 	stream, err := h.proxy.Forward(r.Context(), providerName, req)

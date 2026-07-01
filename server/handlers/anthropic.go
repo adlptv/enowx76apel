@@ -16,15 +16,19 @@ import (
 // Anthropic serves the Messages API at /anthropic/v1/messages. Inbound is
 // decoded into the single model.Request; the reply is encoded as Anthropic SSE.
 type Anthropic struct {
-	proxy *proxy.Proxy
-	route func(string) string
-	logs  store.LogStore
-	keys  store.KeyStore
+	proxy    *proxy.Proxy
+	route    func(string) string
+	logs     store.LogStore
+	keys     store.KeyStore
+	resolver *proxy.AliasResolver
 }
 
 func NewAnthropic(p *proxy.Proxy, route func(string) string, logs store.LogStore, keys store.KeyStore) *Anthropic {
 	return &Anthropic{proxy: p, route: route, logs: logs, keys: keys}
 }
+
+// SetAliasResolver enables alias resolution on incoming model ids.
+func (h *Anthropic) SetAliasResolver(r *proxy.AliasResolver) { h.resolver = r }
 
 func (h *Anthropic) Messages(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -37,6 +41,12 @@ func (h *Anthropic) Messages(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
+	}
+	if h.resolver != nil {
+		if real := h.resolver.Resolve(r.Context(), req.Model); real != req.Model {
+			req.Raw = proxy.RewriteBody(req.Raw, req.Model, real)
+			req.Model = real
+		}
 	}
 	providerName := h.route(req.Model)
 	stream, err := h.proxy.Forward(r.Context(), providerName, req)
