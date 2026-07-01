@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,17 @@ import (
 // handler implements it.
 type Warmer interface {
 	WarmAccount(ctx context.Context, acc *store.Account) (status string, resp map[string]any)
+}
+
+// genericLabel reports whether a label is empty or a known placeholder (so it
+// should be replaced by a resolved email). A user's custom label is preserved.
+func genericLabel(label string) bool {
+	l := strings.TrimSpace(strings.ToLower(label))
+	switch l {
+	case "", "kiro", "kiro desktop", "kiro cli":
+		return true
+	}
+	return false
 }
 
 // autoWarm looks up a just-added account and warms it up (if a Warmer is wired),
@@ -104,6 +116,17 @@ func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
 func (h *Warmup) WarmAccount(ctx context.Context, acc *store.Account) (string, map[string]any) {
 	pacc := provider.Account{ID: acc.ID, Secret: acc.Secret, Creds: acc.Creds}
 	req := warmupRequest(acc.Provider)
+
+	// Label the account by email when the provider can resolve one and the label
+	// is empty or generic (e.g. token-added kiro accounts).
+	if prov, err := h.reg.Get(acc.Provider); err == nil {
+		if er, ok := prov.(provider.EmailReporter); ok && genericLabel(acc.Label) {
+			if email := er.Email(pacc); email != "" {
+				_ = h.store.SetLabel(ctx, acc.ID, email)
+				acc.Label = email
+			}
+		}
+	}
 
 	start := time.Now()
 	res := h.proxy.Probe(ctx, acc.Provider, pacc, req)

@@ -71,6 +71,57 @@ func fetchKiroUsage(doer interface {
 	return nil, lastErr
 }
 
+// Email fetches the account's email from getUsageLimits (isEmailRequired=true),
+// so accounts added by token can still be labelled by email. "" if unavailable.
+func (p *Provider) Email(acc provider.Account) string {
+	am := p.manager(acc)
+	token, err := am.token()
+	if err != nil {
+		return ""
+	}
+	region := orDefault(acc.Cred("sso_region"), "us-east-1")
+	values := url.Values{
+		"origin":          {"AI_EDITOR"},
+		"resourceType":    {"AGENTIC_REQUEST"},
+		"isEmailRequired": {"true"},
+	}
+	if arn := am.profileARN(); arn != "" {
+		values.Set("profileArn", arn)
+	}
+	urls := []string{
+		fmt.Sprintf("https://management.%s.kiro.dev/getUsageLimits?%s", region, values.Encode()),
+		fmt.Sprintf("https://codewhisperer.%s.amazonaws.com/getUsageLimits?%s", region, values.Encode()),
+		fmt.Sprintf("https://q.%s.amazonaws.com/getUsageLimits?%s", region, values.Encode()),
+	}
+	for _, u := range urls {
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("x-amz-user-agent", "aws-sdk-js/1.0.0 KiroIDE")
+		resp, err := p.doer.Do(req)
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+		var payload struct {
+			UserInfo struct {
+				Email string `json:"email"`
+			} `json:"userInfo"`
+		}
+		if json.Unmarshal(body, &payload) == nil && payload.UserInfo.Email != "" {
+			return payload.UserInfo.Email
+		}
+	}
+	return ""
+}
+
 func parseKiroUsage(body []byte) (*provider.Usage, error) {
 	var payload struct {
 		PlanType           string `json:"planType"`

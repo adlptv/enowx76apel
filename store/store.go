@@ -186,6 +186,7 @@ type AccountStore interface {
 	Add(ctx context.Context, a Account) (int64, error)
 	SetStatus(ctx context.Context, id int64, status string) error
 	SetDisabled(ctx context.Context, id int64, disabled bool) error
+	SetLabel(ctx context.Context, id int64, label string) error
 	UpdateCreds(ctx context.Context, id int64, creds map[string]string) error
 	Delete(ctx context.Context, id int64) error
 }

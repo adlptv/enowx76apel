@@ -46,6 +46,11 @@ func (s *accountStore) SetStatus(ctx context.Context, id int64, status string) e
 	return err
 }
 
+func (s *accountStore) SetLabel(ctx context.Context, id int64, label string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET label = ? WHERE id = ?`, label, id)
+	return err
+}
+
 func (s *accountStore) SetDisabled(ctx context.Context, id int64, disabled bool) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE accounts SET disabled = ? WHERE id = ?`, disabled, id)
 	return err

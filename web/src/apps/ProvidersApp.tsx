@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, MessageSquare, Image } from "lucide-react";
+import { Search, Plus, Image } from "lucide-react";
 import { AppShell } from "./shell";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { AddAccountModal } from "../components/AddAccountModal";
@@ -126,11 +126,6 @@ function ProviderCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">{provider.label}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-white/40">
-            {provider.chat && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-1.5 py-0.5">
-                <MessageSquare className="h-3 w-3" /> chat
-              </span>
-            )}
             {provider.images && (
               <span className="inline-flex items-center gap-1 rounded-md bg-white/5 px-1.5 py-0.5">
                 <Image className="h-3 w-3" /> images

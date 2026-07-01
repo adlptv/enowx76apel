@@ -68,6 +68,13 @@ type UsageReporter interface {
 	Usage(acc Account) (*Usage, error)
 }
 
+// EmailReporter is an optional capability: providers that can resolve an
+// account's email from its credentials implement it, so token-added accounts can
+// be labelled by email.
+type EmailReporter interface {
+	Email(acc Account) string
+}
+
 // Model is one model a provider account can access.
 type Model struct {
 	ID      string `json:"id"`
