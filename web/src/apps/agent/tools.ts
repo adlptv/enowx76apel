@@ -129,8 +129,20 @@ export function lineDiff(oldText: string, newText: string): { rows: DiffRow[]; a
   return { rows, added, removed };
 }
 
-// Which tools mutate/side-effect (need approval at the "Sedang" level).
+// Which tools mutate/side-effect (need approval at the "Confirm writes" level).
 export const WRITE_TOOLS = new Set<ToolName>(["write_file", "edit_file", "run_command", "http_request"]);
+
+// Tools whose individual rows aren't worth their own card — collapsed into a
+// single dropdown when several run in a row. write/edit/run keep their own block
+// (their diffs/output are the point).
+export const GROUPABLE_TOOLS = new Set<ToolName>(["read_file", "list_dir", "http_request"]);
+
+// A summary verb for a run of one groupable tool: [verb, noun].
+export const GROUP_VERB: Record<string, [string, string]> = {
+  read_file: ["Read", "file"],
+  list_dir: ["Listed", "folder"],
+  http_request: ["Fetched", "URL"],
+};
 
 export type PermLevel = "need" | "medium" | "bypass";
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Send, Trash2, Loader2, Bot, User, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2 } from "lucide-react";
+import { Send, Trash2, Loader2, Bot, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2 } from "lucide-react";
 import { accountsApi, keysApi, filesApi, type ProviderModel, type DirListing } from "../lib/api";
 import { Markdown } from "../components/Markdown";
-import { TOOL_SCHEMAS, TOOL_META, lineDiff, runTool, needsApproval, type PermLevel, type ToolName, type ToolResult } from "./agent/tools";
+import { TOOL_SCHEMAS, TOOL_META, GROUPABLE_TOOLS, GROUP_VERB, lineDiff, runTool, needsApproval, type PermLevel, type ToolName, type ToolResult } from "./agent/tools";
 
 const DEFAULT_SYSTEM = `You are a helpful coding assistant running inside the enowx dashboard.
 Reply in the same language the user writes in. Be concise and precise.
@@ -28,23 +28,35 @@ interface ChatMsg {
 const PERM_LABELS: Record<PermLevel, string> = { need: "Ask every time", medium: "Confirm writes", bypass: "Auto (bypass)" };
 const MAX_STEPS = 12;
 
+const LS = {
+  chat: "enowx-aichat-history",
+  model: "enowx-aichat-model",
+  sys: "enowx-aichat-system",
+  cwd: "enowx-aichat-cwd",
+  perm: "enowx-aichat-perm",
+  agent: "enowx-aichat-agent",
+};
+const load = <T,>(key: string, fallback: T): T => {
+  try { const v = localStorage.getItem(key); return v == null ? fallback : (JSON.parse(v) as T); } catch { return fallback; }
+};
+
 export function AiChatApp() {
   const [models, setModels] = useState<ProviderModel[]>([]);
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(() => load<string>(LS.model, ""));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [filter, setFilter] = useState("");
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [msgs, setMsgs] = useState<ChatMsg[]>(() => load<ChatMsg[]>(LS.chat, []));
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [apiKey, setApiKey] = useState("");
 
-  const [agentMode, setAgentMode] = useState(false);
-  const [cwd, setCwd] = useState("");
-  const [perm, setPerm] = useState<PermLevel>("medium");
+  const [agentMode, setAgentMode] = useState(() => load<boolean>(LS.agent, false));
+  const [cwd, setCwd] = useState(() => load<string>(LS.cwd, ""));
+  const [perm, setPerm] = useState<PermLevel>(() => load<PermLevel>(LS.perm, "medium"));
   const [permOpen, setPermOpen] = useState(false);
   const [pending, setPending] = useState<{ call: ToolCall; resolve: (ok: boolean) => void } | null>(null);
-  const [sysPrompt, setSysPrompt] = useState(DEFAULT_SYSTEM);
+  const [sysPrompt, setSysPrompt] = useState(() => load<string>(LS.sys, DEFAULT_SYSTEM));
   const [showSys, setShowSys] = useState(false);
   const [showBrowser, setShowBrowser] = useState(false);
 
@@ -63,9 +75,22 @@ export function AiChatApp() {
     }).catch(() => {});
   }, []);
 
+  // Persist chat + preferences. Skip while streaming (busy) so we don't serialize
+  // the whole history on every animation frame — only save when a turn settles.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [msgs, pending]);
+    if (busy) return;
+    try { localStorage.setItem(LS.chat, JSON.stringify(msgs.slice(-100))); } catch { /* quota */ }
+  }, [msgs, busy]);
+  useEffect(() => { if (model) localStorage.setItem(LS.model, JSON.stringify(model)); }, [model]);
+  useEffect(() => { localStorage.setItem(LS.sys, JSON.stringify(sysPrompt)); }, [sysPrompt]);
+  useEffect(() => { localStorage.setItem(LS.cwd, JSON.stringify(cwd)); }, [cwd]);
+  useEffect(() => { localStorage.setItem(LS.perm, JSON.stringify(perm)); }, [perm]);
+  useEffect(() => { localStorage.setItem(LS.agent, JSON.stringify(agentMode)); }, [agentMode]);
+
+  useEffect(() => {
+    // Instant while streaming (busy) — smooth scroll every frame stacks up.
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: busy ? "auto" : "smooth" });
+  }, [msgs, pending, busy]);
 
   const shownModels = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -107,40 +132,61 @@ export function AiChatApp() {
     setMsgs((p) => [...p, assistant]);
     const calls: Record<number, ToolCall> = {};
 
+    // Coalesce state updates to one per animation frame — updating on every token
+    // triggers thousands of re-renders on long replies and can crash the tab.
+    let dirty = false;
+    let raf = 0;
+    const flush = () => {
+      raf = 0;
+      if (!dirty) return;
+      dirty = false;
+      setMsgs((p) => replaceLast(p, { ...assistant, tool_calls: assistant.tool_calls ? [...assistant.tool_calls] : undefined }));
+    };
+    const schedule = () => {
+      dirty = true;
+      if (!raf) raf = requestAnimationFrame(flush);
+    };
+
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() ?? "";
-      for (const line of lines) {
-        const s = line.trim();
-        if (!s.startsWith("data:")) continue;
-        const data = s.slice(5).trim();
-        if (data === "[DONE]") continue;
-        let j: any;
-        try { j = JSON.parse(data); } catch { continue; }
-        const delta = j.choices?.[0]?.delta;
-        if (!delta) continue;
-        if (delta.content) {
-          assistant.content += delta.content;
-          setMsgs((p) => replaceLast(p, { ...assistant }));
-        }
-        for (const tc of delta.tool_calls ?? []) {
-          const idx = tc.index ?? 0;
-          const cur = calls[idx] ?? (calls[idx] = { id: "", name: "", args: "" });
-          if (tc.id) cur.id = tc.id;
-          if (tc.function?.name) cur.name = tc.function.name;
-          if (tc.function?.arguments) cur.args += tc.function.arguments;
-          assistant.tool_calls = Object.keys(calls).sort((a, b) => +a - +b).map((k) => calls[+k]);
-          setMsgs((p) => replaceLast(p, { ...assistant }));
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const s = line.trim();
+          if (!s.startsWith("data:")) continue;
+          const data = s.slice(5).trim();
+          if (data === "[DONE]") continue;
+          let j: any;
+          try { j = JSON.parse(data); } catch { continue; }
+          const delta = j.choices?.[0]?.delta;
+          if (!delta) continue;
+          if (delta.content) {
+            assistant.content += delta.content;
+            schedule();
+          }
+          for (const tc of delta.tool_calls ?? []) {
+            const idx = tc.index ?? 0;
+            const cur = calls[idx] ?? (calls[idx] = { id: "", name: "", args: "" });
+            if (tc.id) cur.id = tc.id;
+            if (tc.function?.name) cur.name = tc.function.name;
+            if (tc.function?.arguments) cur.args += tc.function.arguments;
+            assistant.tool_calls = Object.keys(calls).sort((a, b) => +a - +b).map((k) => calls[+k]);
+            schedule();
+          }
         }
       }
+    } finally {
+      if (raf) cancelAnimationFrame(raf);
     }
+    // Final commit so nothing is dropped from the coalescing.
     if (assistant.tool_calls) assistant.tool_calls.forEach((c, i) => { if (!c.id) c.id = `call_${Date.now()}_${i}`; });
+    setMsgs((p) => replaceLast(p, { ...assistant, tool_calls: assistant.tool_calls ? [...assistant.tool_calls] : undefined }));
     return assistant;
   }
 
@@ -305,22 +351,49 @@ function ModelPicker({ current, open, setOpen, filter, setFilter, models, model,
   );
 }
 
+// groupCalls collapses consecutive groupable tool calls (read/list/http) into a
+// single { group: [...] } block, while write/edit/run stay standalone — so the
+// chat shows one "Read 5 files" dropdown instead of five separate cards.
+function groupCalls(calls: ToolCall[]): ({ single: ToolCall } | { group: ToolCall[] })[] {
+  const out: ({ single: ToolCall } | { group: ToolCall[] })[] = [];
+  let run: ToolCall[] = [];
+  const flush = () => {
+    if (run.length >= 2) out.push({ group: run });
+    else run.forEach((c) => out.push({ single: c }));
+    run = [];
+  };
+  for (const c of calls) {
+    if (GROUPABLE_TOOLS.has(c.name as ToolName)) run.push(c);
+    else { flush(); out.push({ single: c }); }
+  }
+  flush();
+  return out;
+}
+
 function MessageRow({ msg }: { msg: ChatMsg }) {
-  if (msg.role === "tool") return null; // tool results are shown inside the assistant card
-  const isUser = msg.role === "user";
+  if (msg.role === "tool") return null; // tool results render inside the assistant turn
+
+  // User: compact right-aligned bubble.
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] break-words rounded-2xl bg-indigo-500/90 px-3.5 py-2 text-sm text-white">
+          <div className="whitespace-pre-wrap">{msg.content}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant: no bubble, full width. Text + grouped tool blocks.
+  const results = msg.results ?? {};
   return (
-    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
-      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${isUser ? "bg-indigo-500/20 text-indigo-300" : "bg-white/10 text-white/60"}`}>
-        {isUser ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-      </div>
-      <div className="min-w-0 max-w-[80%] space-y-2">
-        {(msg.content || (!msg.tool_calls?.length && !isUser)) && (
-          <div className={`rounded-2xl px-3.5 py-2 text-sm ${isUser ? "bg-indigo-500/15 text-white" : "bg-white/5 text-white/90"}`}>
-            {msg.content ? <Markdown text={msg.content} /> : <Loader2 className="h-4 w-4 animate-spin text-white/40" />}
-          </div>
-        )}
-        {msg.tool_calls?.map((c) => <ToolCard key={c.id} call={c} result={msg.results?.[c.id]} />)}
-      </div>
+    <div className="min-w-0 space-y-1.5 text-sm text-white/90">
+      {msg.content ? <Markdown text={msg.content} /> : !msg.tool_calls?.length ? <Loader2 className="h-4 w-4 animate-spin text-white/40" /> : null}
+      {msg.tool_calls && groupCalls(msg.tool_calls).map((b, i) =>
+        "group" in b
+          ? <ToolGroup key={i} calls={b.group} results={results} />
+          : <ToolCard key={b.single.id} call={b.single} result={results[b.single.id]} />,
+      )}
     </div>
   );
 }
@@ -328,6 +401,49 @@ function MessageRow({ msg }: { msg: ChatMsg }) {
 const TOOL_ICONS: Record<string, typeof Terminal> = {
   read_file: FileText, list_dir: Folder, write_file: FilePlus, edit_file: FileEdit, run_command: Terminal, http_request: Globe,
 };
+
+// ToolGroup collapses a run of groupable tool calls into one dropdown:
+// collapsed shows a summary ("Read 5 files"); expanded shows each row.
+function ToolGroup({ calls, results }: { calls: ToolCall[]; results: Record<string, ToolResult> }) {
+  const [open, setOpen] = useState(false);
+  const names = [...new Set(calls.map((c) => c.name))];
+  const n = calls.length;
+  const label = names.length === 1
+    ? (() => { const [verb, noun] = GROUP_VERB[names[0]] ?? ["Ran", "action"]; return `${verb} ${n} ${noun}${n === 1 ? "" : "s"}`; })()
+    : `${n} actions`;
+  const running = calls.some((c) => !results[c.id]);
+  const anyErr = calls.some((c) => results[c.id] && !results[c.id].ok);
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] text-xs">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-white/60 hover:bg-white/[0.04]">
+        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+        <Wrench className="h-3.5 w-3.5 shrink-0 text-white/40" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {running ? <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-400" /> : anyErr ? <span className="text-[10px] font-semibold text-red-400">error</span> : <Check className="h-3.5 w-3.5 text-emerald-400/70" />}
+      </button>
+      {open && (
+        <div className="border-t border-white/10 bg-black/20 py-0.5">
+          {calls.map((c) => <GroupRow key={c.id} call={c} result={results[c.id]} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// GroupRow is one line inside an expanded ToolGroup: status + tool + target.
+function GroupRow({ call, result }: { call: ToolCall; result?: ToolResult }) {
+  let args: Record<string, unknown> = {};
+  try { args = JSON.parse(call.args || "{}"); } catch { /* partial */ }
+  const target = String(args.path ?? args.url ?? args.command ?? "");
+  const Icon = TOOL_ICONS[call.name] ?? Wrench;
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-1 text-[11px]">
+      {!result ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-sky-400" /> : result.ok ? <Check className="h-3 w-3 shrink-0 text-emerald-400/70" /> : <X className="h-3 w-3 shrink-0 text-red-400" />}
+      <Icon className="h-3 w-3 shrink-0 text-white/40" />
+      <span className="min-w-0 flex-1 truncate font-mono text-white/60" title={target}>{target || call.name}</span>
+    </div>
+  );
+}
 
 // ToolCard is a compact, robloxkit-style tool row: one line with an
 // icon/chevron + filename (parent path beneath) + a right-side +N/-N (for
