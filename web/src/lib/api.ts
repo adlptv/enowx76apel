@@ -25,6 +25,18 @@ export interface Provider {
   icon: string;
   chat: boolean;
   images: boolean;
+  custom?: boolean;
+}
+
+export interface CustomModel { id: string; name: string }
+export interface CustomProvider {
+  id: number;
+  name: string;
+  prefix: string;
+  format: "openai" | "anthropic";
+  base_url: string;
+  default_model: string;
+  models: CustomModel[];
 }
 
 export interface Account {
@@ -47,6 +59,14 @@ export interface NewAccount {
 
 export const providersApi = {
   list: () => api.get<Provider[]>("/api/providers"),
+};
+
+export const customProviderApi = {
+  list: () => api.get<{ providers: CustomProvider[] }>("/api/custom-providers"),
+  create: (p: Omit<CustomProvider, "id">) => api.post<{ id: number }>("/api/custom-providers", p),
+  update: (id: number, p: Omit<CustomProvider, "id">) => api.patch<{ ok: boolean }>(`/api/custom-providers/${id}`, p),
+  remove: (id: number) => api.del<{ ok: boolean }>(`/api/custom-providers/${id}`),
+  probe: (base_url: string, format: string, api_key: string) => api.post<{ models: CustomModel[] }>("/api/custom-providers/probe", { base_url, format, api_key }),
 };
 
 export interface UsageWindow {

@@ -1,6 +1,43 @@
 package proxy
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
+
+// prefixMu guards the prefix maps, which are mutated at runtime when custom
+// providers are added/removed.
+var prefixMu sync.RWMutex
+
+// AddPrefix registers a runtime provider prefix (custom providers).
+func AddPrefix(prefix, provider string) {
+	prefixMu.Lock()
+	providerByPrefix[prefix] = provider
+	providerByPrefix[provider] = provider
+	if _, ok := prefixByProvider[provider]; !ok {
+		prefixByProvider[provider] = prefix
+	}
+	prefixMu.Unlock()
+}
+
+// RemovePrefix unregisters a runtime provider prefix.
+func RemovePrefix(prefix, provider string) {
+	prefixMu.Lock()
+	delete(providerByPrefix, prefix)
+	delete(providerByPrefix, provider)
+	delete(prefixByProvider, provider)
+	prefixMu.Unlock()
+}
+
+// PrefixTaken reports whether a prefix or provider name is already registered
+// (built-in or custom) — used to reject clashing custom prefixes.
+func PrefixTaken(s string) bool {
+	prefixMu.RLock()
+	_, a := providerByPrefix[s]
+	_, b := prefixByProvider[s]
+	prefixMu.RUnlock()
+	return a || b
+}
 
 // providerByPrefix maps a short provider prefix (as seen in a model id like
 // "kr/claude-sonnet-4.5") to the internal provider name. The long form is also
@@ -35,11 +72,18 @@ var prefixByProvider = map[string]string{
 
 // ProviderPrefix returns the short display prefix for a provider ("kr", "cb"),
 // or "" if the provider has none.
-func ProviderPrefix(provider string) string { return prefixByProvider[provider] }
+func ProviderPrefix(provider string) string {
+	prefixMu.RLock()
+	defer prefixMu.RUnlock()
+	return prefixByProvider[provider]
+}
 
 // PrefixModel returns the provider-prefixed display id ("kr/claude-...").
 func PrefixModel(provider, modelID string) string {
-	if p := prefixByProvider[provider]; p != "" {
+	prefixMu.RLock()
+	p := prefixByProvider[provider]
+	prefixMu.RUnlock()
+	if p != "" {
 		return p + "/" + modelID
 	}
 	return modelID
@@ -49,7 +93,10 @@ func PrefixModel(provider, modelID string) string {
 // provider (empty if unknown/absent) plus the bare model id upstream expects.
 func SplitModel(modelID string) (provider, bare string) {
 	if i := strings.Index(modelID, "/"); i > 0 {
-		if p, ok := providerByPrefix[modelID[:i]]; ok {
+		prefixMu.RLock()
+		p, ok := providerByPrefix[modelID[:i]]
+		prefixMu.RUnlock()
+		if ok {
 			return p, modelID[i+1:]
 		}
 	}

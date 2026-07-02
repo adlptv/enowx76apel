@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/enowdev/enowx/core/provider"
+	"github.com/enowdev/enowx/core/provider/custommgr"
 	"github.com/enowdev/enowx/core/plugins"
 	"github.com/enowdev/enowx/core/proxy"
 	"github.com/enowdev/enowx/core/suno"
@@ -40,6 +41,7 @@ type Deps struct {
 	Tunnel     *tunnel.Manager
 	Plugins    *plugins.Manager
 	Sync       *syncpkg.Manager
+	CustomProv *custommgr.Manager
 	Doer       transport.Doer
 	Settings   handlers.SettingsInfo
 }
@@ -84,6 +86,7 @@ func New(addr string, d Deps) *Server {
 	agent := handlers.NewAgent(dash, d.Doer)
 	pluginsH := handlers.NewPlugins(dash, d.Plugins)
 	market := handlers.NewMarket(dash, d.Sync, d.Plugins)
+	customProv := handlers.NewCustomProviders(dash, d.CustomProv)
 	music := handlers.NewMusic(d.Music)
 	sunoMusic := handlers.NewSuno(d.Accounts, d.Proxy, suno.New(d.Doer))
 	tun := handlers.NewTunnel(d.Tunnel, d.Keys)
@@ -105,6 +108,11 @@ func New(addr string, d Deps) *Server {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/providers", providers.List)
+		r.Get("/custom-providers", customProv.List)
+		r.Post("/custom-providers", customProv.Create)
+		r.Post("/custom-providers/probe", customProv.Probe)
+		r.Patch("/custom-providers/{id}", customProv.Update)
+		r.Delete("/custom-providers/{id}", customProv.Delete)
 		r.Get("/accounts", accounts.List)
 		r.Post("/accounts", accounts.Add)
 		r.Patch("/accounts/{id}/status", accounts.SetStatus)

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/enowdev/enowx/core/provider"
 )
@@ -9,8 +10,9 @@ import (
 // providerMeta is the display catalog for known providers. The registry decides
 // what is actually available; this only adds label/icon for the UI.
 type providerMeta struct {
-	Label string
-	Icon  string
+	Label  string
+	Icon   string
+	Custom bool
 }
 
 var providerCatalog = map[string]providerMeta{
@@ -23,6 +25,23 @@ var providerCatalog = map[string]providerMeta{
 	"leonardo":     {Label: "Leonardo", Icon: "leonardo"},
 }
 
+// catalogMu guards runtime additions (custom providers).
+var catalogMu sync.RWMutex
+
+// AddCatalogEntry registers display metadata for a custom provider at runtime.
+func AddCatalogEntry(name, label, icon string) {
+	catalogMu.Lock()
+	providerCatalog[name] = providerMeta{Label: label, Icon: icon, Custom: true}
+	catalogMu.Unlock()
+}
+
+// RemoveCatalogEntry removes a custom provider's display metadata.
+func RemoveCatalogEntry(name string) {
+	catalogMu.Lock()
+	delete(providerCatalog, name)
+	catalogMu.Unlock()
+}
+
 type providerDTO struct {
 	Name   string `json:"name"`
 	Label  string `json:"label"`
@@ -30,6 +49,7 @@ type providerDTO struct {
 	Chat   bool   `json:"chat"`
 	Images bool   `json:"images"`
 	Music  bool   `json:"music"`
+	Custom bool   `json:"custom"`
 }
 
 // Providers lists the registered upstream providers with display metadata.
@@ -44,7 +64,9 @@ func (h *Providers) List(w http.ResponseWriter, _ *http.Request) {
 		if err != nil {
 			continue
 		}
+		catalogMu.RLock()
 		meta := providerCatalog[name]
+		catalogMu.RUnlock()
 		if meta.Label == "" {
 			meta.Label = name
 		}
@@ -59,6 +81,7 @@ func (h *Providers) List(w http.ResponseWriter, _ *http.Request) {
 			Chat:   caps.Chat,
 			Images: caps.Images,
 			Music:  caps.Music,
+			Custom: meta.Custom,
 		})
 	}
 	writeData(w, out)

@@ -13,6 +13,7 @@ import (
 	"github.com/enowdev/enowx/core/provider"
 	"github.com/enowdev/enowx/core/provider/antigravity"
 	"github.com/enowdev/enowx/core/provider/codebuddy"
+	"github.com/enowdev/enowx/core/provider/custommgr"
 	"github.com/enowdev/enowx/core/provider/codex"
 	leonardoprovider "github.com/enowdev/enowx/core/provider/leonardo"
 	sunoprovider "github.com/enowdev/enowx/core/provider/suno"
@@ -68,6 +69,16 @@ func main() {
 	tun := tunnel.New(cfg.RuntimeDir, cfg.Port)
 	pluginMgr := plugins.New(cfg.PluginsDir(), cfg.Port)
 	syncMgr := syncpkg.New(db.Settings(), db.Music(), db.Logs())
+
+	// User-defined (custom) providers: register the stored ones live, then keep
+	// the registry/prefix/catalog in sync on change.
+	customMgr := custommgr.New(reg, db.CustomProviders(), custommgr.Catalog{
+		Add:    handlers.AddCatalogEntry,
+		Remove: handlers.RemoveCatalogEntry,
+	})
+	if err := customMgr.LoadAll(context.Background()); err != nil {
+		log.Printf("custom providers: load: %v", err)
+	}
 	// Maintain the live channel (pull side) and the automatic push side. Both
 	// are no-ops until logged in; auto-push also obeys the global toggle.
 	go syncMgr.RunLive(context.Background(), nil)
@@ -88,6 +99,7 @@ func main() {
 		Tunnel:     tun,
 		Plugins:    pluginMgr,
 		Sync:       syncMgr,
+		CustomProv: customMgr,
 		Doer:       doer,
 		Settings: handlers.SettingsInfo{
 			Version:    version,

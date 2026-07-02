@@ -154,6 +154,32 @@ type AliasStore interface {
 	Map(ctx context.Context) map[string]string // alias→target, for the resolver
 }
 
+// CustomModel is one model exposed by a custom provider.
+type CustomModel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// CustomProvider is a user-defined OpenAI/Anthropic-compatible provider.
+type CustomProvider struct {
+	ID           int64         `json:"id"`
+	Name         string        `json:"name"`
+	Prefix       string        `json:"prefix"`
+	Format       string        `json:"format"` // openai | anthropic
+	BaseURL      string        `json:"base_url"`
+	DefaultModel string        `json:"default_model"`
+	Models       []CustomModel `json:"models"`
+}
+
+// CustomProviderStore persists user-defined providers (local only).
+type CustomProviderStore interface {
+	List(ctx context.Context) ([]CustomProvider, error)
+	Get(ctx context.Context, id int64) (*CustomProvider, error)
+	Create(ctx context.Context, p CustomProvider) (int64, error)
+	Update(ctx context.Context, p CustomProvider) error
+	Delete(ctx context.Context, id int64) error
+}
+
 // SettingsStore is a tiny key/value store for gateway settings (e.g. the
 // dashboard password hash). Values are opaque strings.
 type SettingsStore interface {
