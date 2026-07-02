@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import type { Notification } from "../lib/api";
 import { onBanner } from "./notifBus";
 import { NOTIF_ICON, NOTIF_VERB, routeNotif } from "./notifMeta";
+import { playNotifSound } from "./notifSound";
 import { useProfile } from "./useProfile";
 
 const DISMISS_MS = 5000;
@@ -22,6 +23,7 @@ export function NotifBanner() {
     return onBanner((n) => {
       const key = seq.current++;
       setBanners((prev) => [...prev, { key, n }].slice(-MAX_VISIBLE));
+      playNotifSound();
     });
   }, []);
 
