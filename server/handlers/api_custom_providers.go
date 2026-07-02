@@ -147,9 +147,28 @@ func (h *CustomProviders) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+
+	// Find the provider name so we can also delete its accounts (cascade).
+	name := ""
+	if list, err := h.mgr.List(r.Context()); err == nil {
+		for _, p := range list {
+			if p.ID == id {
+				name = p.Name
+				break
+			}
+		}
+	}
 	if err := h.mgr.Remove(r.Context(), id); err != nil {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// Delete the provider's accounts too — they're unusable without it.
+	if name != "" && h.acct != nil {
+		if accs, err := h.acct.List(r.Context(), name); err == nil {
+			for _, a := range accs {
+				_ = h.acct.Delete(r.Context(), a.ID)
+			}
+		}
 	}
 	writeData(w, map[string]any{"ok": true})
 }

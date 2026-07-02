@@ -91,7 +91,7 @@ export function ProvidersApp() {
               count={counts[p.name] ?? 0}
               onAdd={() => setAdding(p)}
               onDelete={p.custom ? async () => {
-                const ok = await dialog.confirm({ title: `Delete ${p.label}?`, message: "This removes the custom provider (its accounts stay but become unusable).", confirmLabel: "Delete", danger: true });
+                const ok = await dialog.confirm({ title: `Delete ${p.label}?`, message: "This removes the custom provider and all its accounts.", confirmLabel: "Delete", danger: true });
                 if (!ok) return;
                 const cp = await customProviderApi.list().then((r) => r.providers.find((x) => x.name === p.name));
                 if (cp) { await customProviderApi.remove(cp.id); load(); }
