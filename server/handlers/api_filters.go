@@ -78,8 +78,9 @@ func (h *Filters) Add(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusBadRequest, "pattern is required")
 		return
 	}
+	pat := strings.TrimSpace(b.Pattern)
 	id, err := h.store.Add(r.Context(), store.ContentFilter{
-		Pattern: strings.TrimSpace(b.Pattern), Replacement: b.Replacement, IsRegex: b.IsRegex, IsActive: b.IsActive,
+		Pattern: pat, Replacement: b.Replacement, IsRegex: sanitize.LooksRegex(pat), IsActive: b.IsActive,
 	})
 	if err != nil {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
@@ -99,8 +100,9 @@ func (h *Filters) Update(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusBadRequest, "bad body")
 		return
 	}
+	pat := strings.TrimSpace(b.Pattern)
 	if err := h.store.Update(r.Context(), store.ContentFilter{
-		ID: id, Pattern: strings.TrimSpace(b.Pattern), Replacement: b.Replacement, IsRegex: b.IsRegex, IsActive: b.IsActive,
+		ID: id, Pattern: pat, Replacement: b.Replacement, IsRegex: sanitize.LooksRegex(pat), IsActive: b.IsActive,
 	}); err != nil {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -170,7 +172,8 @@ func (h *Filters) LoadTemplate(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusNotFound, "template not found")
 		return
 	}
-	if err := h.store.ReplaceAll(r.Context(), rules); err != nil {
+	// Merge: keep existing rules, add the template's, skip duplicate patterns.
+	if err := h.store.MergeAll(r.Context(), rules); err != nil {
 		writeAPIErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}

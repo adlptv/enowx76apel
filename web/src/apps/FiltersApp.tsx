@@ -10,7 +10,6 @@ export function FiltersApp() {
   const [rows, setRows] = useState<ContentFilter[] | null>(null);
   const [pattern, setPattern] = useState("");
   const [replacement, setReplacement] = useState("");
-  const [regex, setRegex] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [templates, setTemplates] = useState<FilterTemplate[]>([]);
@@ -23,8 +22,9 @@ export function FiltersApp() {
     if (!pattern.trim()) { setErr("Enter a word/pattern to filter."); return; }
     setBusy(true); setErr("");
     try {
-      await filterApi.add({ pattern: pattern.trim(), replacement: replacement.trim(), is_regex: regex, is_active: true });
-      setPattern(""); setReplacement(""); setRegex(false);
+      // The server auto-detects regex from the pattern (use * / [ ] for wildcards).
+      await filterApi.add({ pattern: pattern.trim(), replacement: replacement.trim(), is_regex: false, is_active: true });
+      setPattern(""); setReplacement("");
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
@@ -39,19 +39,18 @@ export function FiltersApp() {
 
   return (
     <AppShell title="Filters" subtitle="Swap blocked words before sending, restore them in the reply">
-      {/* Templates + add — compact single row. */}
-      <div className="mb-2 flex items-center gap-1.5">
-        <input value={pattern} onChange={(e) => setPattern(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="word / pattern" className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-white outline-none focus:border-white/25" />
-        <ArrowRight className="h-3 w-3 shrink-0 text-white/25" />
-        <input value={replacement} onChange={(e) => setReplacement(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="replacement" className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-white outline-none focus:border-white/25" />
-        <label className="flex shrink-0 items-center gap-1 text-[10px] text-white/45" title="Treat the pattern as a regular expression">
-          <input type="checkbox" checked={regex} onChange={(e) => setRegex(e.target.checked)} className="accent-indigo-500" />re
-        </label>
-        <button onClick={add} disabled={busy} title="Add rule" className="flex shrink-0 items-center rounded-md bg-white px-2 py-1.5 text-black hover:opacity-90 disabled:opacity-50">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+      {/* Add — stacked Search / Replace with, plus templates. */}
+      <div className="mb-2 flex items-start gap-1.5">
+        <div className="flex-1 space-y-1.5">
+          <input value={pattern} onChange={(e) => setPattern(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Search…" className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/25" />
+          <input value={replacement} onChange={(e) => setReplacement(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Replace with…" className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/25" />
+        </div>
+        <button onClick={add} disabled={busy} title="Add rule" className="flex shrink-0 items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-black hover:opacity-90 disabled:opacity-50">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Add
         </button>
         <TemplatesMenu templates={templates} rows={rows ?? []} onChange={() => { load(); loadTemplates(); }} />
       </div>
+      <p className="mb-2 text-[10px] text-white/30">Tip: use <code className="text-white/45">*</code> or <code className="text-white/45">[ ]</code> for wildcards — patterns with regex symbols are auto-detected.</p>
       {err && <div className="mb-2 text-[11px] text-red-300">{err}</div>}
 
       {/* Rules — dense list. */}

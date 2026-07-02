@@ -199,6 +199,8 @@ type FilterStore interface {
 	DeleteTemplate(ctx context.Context, name string) error
 	// ReplaceAll swaps the active filter set (used when loading a template).
 	ReplaceAll(ctx context.Context, rules []ContentFilter) error
+	// MergeAll appends rules whose pattern isn't already present (template merge).
+	MergeAll(ctx context.Context, rules []ContentFilter) error
 }
 
 // CustomProviderStore persists user-defined providers (local only).

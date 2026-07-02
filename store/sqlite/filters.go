@@ -70,6 +70,28 @@ func (s *filterStore) ReplaceAll(ctx context.Context, rules []store.ContentFilte
 	return tx.Commit()
 }
 
+// MergeAll appends rules whose pattern isn't already present.
+func (s *filterStore) MergeAll(ctx context.Context, rules []store.ContentFilter) error {
+	existing, err := s.List(ctx)
+	if err != nil {
+		return err
+	}
+	have := map[string]bool{}
+	for _, e := range existing {
+		have[e.Pattern] = true
+	}
+	for _, r := range rules {
+		if have[r.Pattern] {
+			continue
+		}
+		if _, err := s.Add(ctx, r); err != nil {
+			return err
+		}
+		have[r.Pattern] = true
+	}
+	return nil
+}
+
 func (s *filterStore) ListTemplates(ctx context.Context) ([]store.FilterTemplate, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT name, rules FROM filter_templates ORDER BY name`)
 	if err != nil {

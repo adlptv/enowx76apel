@@ -17,6 +17,18 @@ type Rule struct {
 	Regex       bool
 }
 
+// LooksRegex reports whether a pattern should be treated as a regular expression:
+// it contains a regex metacharacter AND compiles. Plain text (e.g. "enowx") stays
+// literal; a pattern like "foo.*bar" or "co(de|re)" is detected as regex. Invalid
+// regex falls back to literal (returns false) so a bad pattern never breaks.
+func LooksRegex(pattern string) bool {
+	if !strings.ContainsAny(pattern, `.*+?()[]{}|^$\`) {
+		return false
+	}
+	_, err := regexp.Compile(pattern)
+	return err == nil
+}
+
 type compiled struct {
 	pattern     string
 	replacement string
