@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,7 +23,13 @@ var runtimeProbes = []struct {
 	flag string
 }{
 	{"go", []string{"go"}, "version"},
-	{"python", []string{"python3", "python"}, "--version"},
+	// Prefer a newer Python (3.10+); some plugins need it and the macOS
+	// CommandLineTools python3 is often 3.9. Homebrew paths first.
+	{"python", []string{
+		"/opt/homebrew/bin/python3", "/usr/local/bin/python3",
+		"python3.13", "python3.12", "python3.11", "python3.10",
+		"python3", "python",
+	}, "--version"},
 	{"node", []string{"node"}, "--version"},
 }
 
@@ -32,12 +39,19 @@ func DetectRuntimes() []Runtime {
 	for _, p := range runtimeProbes {
 		r := Runtime{ID: p.id}
 		for _, b := range p.bins {
-			if path, err := exec.LookPath(b); err == nil {
-				r.Available = true
-				r.bin = path
-				r.Version = probeVersion(path, p.flag)
-				break
+			path, err := exec.LookPath(b)
+			if err != nil {
+				continue
 			}
+			ver := probeVersion(path, p.flag)
+			// Skip Python older than 3.10 (many plugin deps require it).
+			if p.id == "python" && pythonTooOld(ver) {
+				continue
+			}
+			r.Available = true
+			r.bin = path
+			r.Version = ver
+			break
 		}
 		out = append(out, r)
 	}
@@ -70,6 +84,25 @@ func runArgs(runtime, entry string) (bin string, args []string, ok bool) {
 		return b, []string{"run", entry}, true
 	}
 	return "", nil, false
+}
+
+// pythonTooOld reports whether a "Python 3.x.y" version string is < 3.10.
+func pythonTooOld(ver string) bool {
+	// ver like "Python 3.9.6"
+	fields := strings.Fields(ver)
+	if len(fields) < 2 {
+		return false // unknown → don't reject
+	}
+	parts := strings.Split(fields[1], ".")
+	if len(parts) < 2 {
+		return false
+	}
+	major, _ := strconv.Atoi(parts[0])
+	minor, _ := strconv.Atoi(parts[1])
+	if major < 3 {
+		return true
+	}
+	return major == 3 && minor < 10
 }
 
 func probeVersion(bin, flag string) string {
