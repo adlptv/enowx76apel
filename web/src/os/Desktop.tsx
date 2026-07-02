@@ -134,14 +134,16 @@ export function Desktop() {
       switch (n.ref_type) {
         case "post":
         case "comment": {
+          // The post overlay only renders inside PostsApp, so open the app first,
+          // then open the post (from cache or a fetch).
+          openApp("posts");
           const existing = findPost(n.ref_id);
           if (existing) { openPost(existing); break; }
           try {
             const list = await postsApi.list();
             const p = list.posts.find((x) => x.id === n.ref_id);
-            if (p) { openPost(p); break; }
+            if (p) openPost(p);
           } catch { /* ignore */ }
-          openApp("posts");
           break;
         }
         case "chat":
