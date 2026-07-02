@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/enowdev/enowx/store"
@@ -24,6 +25,17 @@ const (
 func shortHash(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])[:16]
+}
+
+// gatedItemID reports whether a sync item id belongs to a gated (full-sync) type,
+// so tombstoning only touches those (not playlists).
+func gatedItemID(id string) bool {
+	for _, t := range []string{typeCustomProvider, typeAccount, typeAPIKey, typeAlias} {
+		if strings.HasPrefix(id, t+":") {
+			return true
+		}
+	}
+	return false
 }
 
 // --- entitlement + key from cached /me ---
@@ -163,19 +175,35 @@ func (m *Manager) applyCustomProvider(ctx context.Context, ri item) bool {
 	if m.custom == nil {
 		return false
 	}
+	existing, _ := m.custom.List(ctx)
+
+	// Deletion: the id is custom_provider:<prefix>. Delete + unregister the local
+	// provider with that prefix. Tombstones carry no payload.
+	if ri.Deleted {
+		prefix, ok := strings.CutPrefix(ri.ItemID, typeCustomProvider+":")
+		if !ok {
+			return false
+		}
+		for _, e := range existing {
+			if e.Prefix == prefix {
+				_ = m.custom.Delete(ctx, e.ID)
+				if m.onCustomDelete != nil {
+					m.onCustomDelete(e.Prefix, e.Name) // unregister live
+				}
+			}
+		}
+		return true
+	}
+
 	var cp store.CustomProvider
 	if json.Unmarshal([]byte(ri.Payload), &cp) != nil {
 		return false
 	}
 	// Upsert by prefix: skip if we already have this prefix, else create + register.
-	existing, _ := m.custom.List(ctx)
 	for _, e := range existing {
 		if e.Prefix == cp.Prefix {
 			return true // already present (LWW: keep local)
 		}
-	}
-	if ri.Deleted {
-		return true
 	}
 	id, err := m.custom.Create(ctx, cp)
 	if err != nil {
@@ -189,7 +217,25 @@ func (m *Manager) applyCustomProvider(ctx context.Context, ri item) bool {
 }
 
 func (m *Manager) applyAccount(ctx context.Context, ri item) bool {
-	if m.accounts == nil || !ri.Encrypted {
+	if m.accounts == nil {
+		return false
+	}
+	// Deletion: the id is account:<provider>:<hash(secret+creds)>. Delete the
+	// local account whose content hash matches. Tombstones carry no payload.
+	if ri.Deleted {
+		prov, hash, ok := parseAccountID(ri.ItemID)
+		if !ok {
+			return false
+		}
+		existing, _ := m.accounts.List(ctx, prov)
+		for _, e := range existing {
+			if shortHash(e.Secret+fmt.Sprint(e.Creds)) == hash {
+				_ = m.accounts.Delete(ctx, e.ID)
+			}
+		}
+		return true
+	}
+	if !ri.Encrypted {
 		return false
 	}
 	key := m.credKey(ctx)
@@ -212,15 +258,43 @@ func (m *Manager) applyAccount(ctx context.Context, ri item) bool {
 			return true
 		}
 	}
-	if ri.Deleted {
-		return true
-	}
 	_, _ = m.accounts.Add(ctx, store.Account{Provider: sa.Provider, Label: sa.Label, Secret: sa.Secret, Creds: sa.Creds, Status: sa.Status, Disabled: sa.Disabled})
 	return true
 }
 
+// parseAccountID splits "account:<provider>:<hash>" (provider may contain no colon).
+func parseAccountID(id string) (provider, hash string, ok bool) {
+	rest, found := strings.CutPrefix(id, typeAccount+":")
+	if !found {
+		return "", "", false
+	}
+	i := strings.LastIndex(rest, ":")
+	if i < 0 {
+		return "", "", false
+	}
+	return rest[:i], rest[i+1:], true
+}
+
 func (m *Manager) applyAPIKey(ctx context.Context, ri item) bool {
-	if m.keys == nil || !ri.Encrypted {
+	if m.keys == nil {
+		return false
+	}
+	// Deletion: the id is apikey:<hash(secret)>. Delete the local key whose
+	// secret hashes to it.
+	if ri.Deleted {
+		hash, ok := strings.CutPrefix(ri.ItemID, typeAPIKey+":")
+		if !ok {
+			return false
+		}
+		keys, _ := m.keys.List(ctx)
+		for _, e := range keys {
+			if shortHash(e.Secret) == hash {
+				_ = m.keys.Delete(ctx, e.ID)
+			}
+		}
+		return true
+	}
+	if !ri.Encrypted {
 		return false
 	}
 	key := m.credKey(ctx)
@@ -237,9 +311,6 @@ func (m *Manager) applyAPIKey(ctx context.Context, ri item) bool {
 	}
 	if existing, _ := m.keys.BySecret(ctx, sk.Secret); existing != nil {
 		return true // already have it
-	}
-	if ri.Deleted {
-		return true
 	}
 	_, _ = m.keys.Add(ctx, store.APIKey{Label: sk.Label, Secret: sk.Secret, TokenLimit: sk.TokenLimit, MaxConcurrent: sk.MaxConcurrent, Enabled: sk.Enabled})
 	return true

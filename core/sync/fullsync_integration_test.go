@@ -54,6 +54,26 @@ func TestFullSyncIntegration(t *testing.T) {
 	if b.alias.rows["fast"] != "itpfx/m1" {
 		t.Errorf("alias not synced: %v", b.alias.rows)
 	}
+
+	// --- Device A deletes the account, then syncs → should tombstone on cloud. ---
+	a.accts.rows = nil // user deleted the account locally
+	if _, _, err := a.mgr.Sync(ctx); err != nil {
+		t.Fatalf("device A re-sync after delete: %v", err)
+	}
+
+	// --- Device C: fresh, pulls from 0 → account must NOT re-appear. ---
+	c := newFakeMgr(t, token)
+	c.setCursor("0")
+	if _, _, err := c.mgr.Sync(ctx); err != nil {
+		t.Fatalf("device C sync: %v", err)
+	}
+	if len(c.accts.rows) != 0 {
+		t.Errorf("deleted account resurrected on device C: %+v", c.accts.rows)
+	}
+	// Custom provider (not deleted) should still be there.
+	if len(c.custom.rows) == 0 {
+		t.Error("custom provider should still sync to device C")
+	}
 }
 
 // --- fakes ---

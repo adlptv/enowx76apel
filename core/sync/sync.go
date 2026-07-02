@@ -956,6 +956,24 @@ func (m *Manager) Sync(ctx context.Context) (pushed, pulled int, err error) {
 		remote[e.ItemID] = e
 	}
 
+	// Tombstone: gated items on the server that no longer exist locally (the user
+	// deleted the account/key/provider) must be pushed as deletions, else they'd
+	// linger on the cloud and re-appear on other devices. Guard rails:
+	//   - only when entitled (a non-entitled snapshot omits gated types), and
+	//   - only once this device has pulled before (cursor > 0). A fresh device
+	//     has an empty local store and must PULL first, never conclude "deleted".
+	if m.hasFullSync(ctx) && m.cursor(ctx) > 0 {
+		for id, re := range remote {
+			if _, stillLocal := local[id]; stillLocal || re.Deleted {
+				continue
+			}
+			if !gatedItemID(id) {
+				continue // leave playlists (and anything else) to their own logic
+			}
+			local[id] = item{ItemID: id, Type: re.Type, Version: re.Version + 1, UpdatedAt: nowMillis(), Deleted: true}
+		}
+	}
+
 	// Push: local items the server lacks or that are strictly newer locally.
 	var toPush []item
 	for id, li := range local {
