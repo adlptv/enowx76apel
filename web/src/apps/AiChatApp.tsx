@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Send, Trash2, Loader2, Bot, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2, Plus, Brain, Music } from "lucide-react";
+import { Send, Trash2, Loader2, Bot, ChevronDown, ChevronRight, FolderOpen, Shield, Check, X, Terminal, FileEdit, FileText, FilePlus, Globe, Wrench, Folder, CornerLeftUp, Settings2, Plus, Brain, Music, Image as ImageIcon } from "lucide-react";
 import { accountsApi, keysApi, filesApi, sunoApi, type ProviderModel, type DirListing } from "../lib/api";
 import { markUsageStale } from "../os/usageBus";
 import { AiMarkdown } from "../components/AiMarkdown";
@@ -29,6 +29,7 @@ interface ChatMsg {
   results?: Record<string, ToolResult>;
   suno?: { title: string; audio_url: string; image_url: string; duration: number }[]; // generated songs
   musicId?: string; // stable id for updating a music-generation placeholder row
+  genImage?: string; // set while an image is generating → renders a loading skeleton
 }
 
 const PERM_LABELS: Record<PermLevel, string> = { need: "Ask every time", medium: "Confirm writes", bypass: "Auto (bypass)" };
@@ -314,6 +315,8 @@ export function AiChatApp() {
 
     // Image-generation models use a different endpoint + render the result inline.
     if (current?.type === "image") {
+      const iid = `img_${Date.now()}`; // placeholder row → shows a loading skeleton
+      setMsgs((p) => [...p, { role: "assistant", content: "", genImage: iid }]);
       try {
         const res = await fetch("/v1/images/generations", {
           method: "POST",
@@ -324,10 +327,11 @@ export function AiChatApp() {
         if (!res.ok) throw new Error((await res.text().catch(() => "")) || `request failed (${res.status})`);
         const j = await res.json();
         const srcs = (j.data ?? []).map((d: { b64_json?: string; url?: string }) => (d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url)).filter(Boolean) as string[];
-        setMsgs((p) => [...p, { role: "assistant", content: "", images: srcs }]);
+        setMsgs((p) => p.map((m) => (m.genImage === iid ? { role: "assistant", content: "", images: srcs } : m)));
         markUsageStale(providerOf(current)); // image gen consumed credits — refresh the bar
       } catch (e) {
-        if ((e as Error).name !== "AbortError") setErr(e instanceof Error ? e.message : "failed");
+        const msg = (e as Error).name === "AbortError" ? "" : e instanceof Error ? e.message : "failed";
+        setMsgs((p) => p.map((m) => (m.genImage === iid ? { role: "assistant", content: msg ? `Image generation failed: ${msg}` : "Cancelled." } : m)));
       } finally {
         setBusy(false);
         abortRef.current = null;
@@ -429,7 +433,7 @@ export function AiChatApp() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             onPaste={(e) => { const imgs = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); pickImages(e.clipboardData.files); } }}
-            placeholder={model ? "What would you like to work on?" : "Add an account to get models"}
+            placeholder={!model ? "Add an account to get models" : current?.type === "image" ? "Describe an image to generate…" : current?.type === "music" ? "Describe a song to generate…" : "What would you like to work on?"}
             rows={2}
             className="max-h-40 w-full resize-none bg-transparent px-3 pt-2.5 text-sm text-white outline-none placeholder:text-white/30"
           />
@@ -517,6 +521,7 @@ type RenderItem =
   | { kind: "user"; content: string; images?: string[]; key: string }
   | { kind: "reasoning"; content: string; key: string }
   | { kind: "aimages"; images: string[]; key: string }
+  | { kind: "imgskeleton"; key: string }
   | { kind: "songs"; tracks: { title: string; audio_url: string; image_url: string; duration: number }[]; key: string }
   | { kind: "text"; content: string; key: string }
   | { kind: "spinner"; key: string }
@@ -543,8 +548,9 @@ function buildItems(msgs: ChatMsg[]): RenderItem[] {
     if (m.reasoning) { flushRun(); items.push({ kind: "reasoning", content: m.reasoning, key: `r_${i}` }); }
     if (m.images?.length) { flushRun(); items.push({ kind: "aimages", images: m.images, key: `ai_${i}` }); }
     if (m.suno?.length) { flushRun(); items.push({ kind: "songs", tracks: m.suno, key: `sn_${i}` }); }
+    if (m.genImage) { flushRun(); items.push({ kind: "imgskeleton", key: `is_${i}` }); }
     if (m.content) { flushRun(); items.push({ kind: "text", content: m.content, key: `a_${i}` }); }
-    else if (!m.reasoning && !m.images?.length && !m.suno?.length && !m.tool_calls?.length) { flushRun(); items.push({ kind: "spinner", key: `s_${i}` }); }
+    else if (!m.reasoning && !m.images?.length && !m.suno?.length && !m.genImage && !m.tool_calls?.length) { flushRun(); items.push({ kind: "spinner", key: `s_${i}` }); }
     for (const c of m.tool_calls ?? []) {
       const result = m.results?.[c.id];
       if (GROUPABLE_TOOLS.has(c.name as ToolName)) run.push({ call: c, result });
@@ -605,6 +611,16 @@ function Conversation({ msgs, progress }: { msgs: ChatMsg[]; progress: Record<st
                     <img src={src} alt="" className="max-h-72 rounded-lg border border-white/10 object-contain" />
                   </a>
                 ))}
+              </div>
+            );
+          case "imgskeleton":
+            return (
+              <div key={it.key} className="relative h-64 w-64 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.02] via-white/[0.08] to-white/[0.02]" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/40">
+                  <ImageIcon className="h-6 w-6 animate-pulse" />
+                  <span className="text-[11px]">Generating image…</span>
+                </div>
               </div>
             );
           case "songs":
