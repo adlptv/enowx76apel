@@ -115,6 +115,39 @@ type ImageGenerator interface {
 	GenerateImage(doer transport.Doer, acc Account, req ImageRequest) (*ImageResult, error)
 }
 
+// MusicRequest is a normalized text-to-music request.
+type MusicRequest struct {
+	Prompt       string
+	Model        string
+	Style        string
+	Title        string
+	Instrumental bool
+	CustomMode   bool
+}
+
+// MusicTrack is one generated song.
+type MusicTrack struct {
+	ID        string  `json:"id"`
+	AudioURL  string  `json:"audio_url"`
+	StreamURL string  `json:"stream_url"`
+	ImageURL  string  `json:"image_url"`
+	Title     string  `json:"title"`
+	Duration  float64 `json:"duration"`
+}
+
+// MusicResult is the outcome of a music generation (async → often just a task id
+// that the caller polls; the provider decides).
+type MusicResult struct {
+	TaskID string       `json:"task_id"`
+	Tracks []MusicTrack `json:"tracks,omitempty"`
+}
+
+// MusicGenerator is an optional capability: providers that can generate music.
+// The classify hook lets the pool mark the account exhausted/dead on failure.
+type MusicGenerator interface {
+	GenerateMusic(doer transport.Doer, acc Account, req MusicRequest) (*MusicResult, error)
+}
+
 // Model is one model a provider account can access.
 type Model struct {
 	ID      string `json:"id"`

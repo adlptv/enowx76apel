@@ -10,6 +10,7 @@ import (
 
 	"github.com/enowdev/enowx/core/provider"
 	"github.com/enowdev/enowx/core/proxy"
+	"github.com/enowdev/enowx/core/suno"
 	syncpkg "github.com/enowdev/enowx/core/sync"
 	"github.com/enowdev/enowx/core/transport"
 	"github.com/enowdev/enowx/core/tunnel"
@@ -78,7 +79,7 @@ func New(addr string, d Deps) *Server {
 	files := handlers.NewFiles(dash)
 	agent := handlers.NewAgent(dash, d.Doer)
 	music := handlers.NewMusic(d.Music)
-	sunoMusic := handlers.NewSuno(d.Accounts, d.Doer)
+	sunoMusic := handlers.NewSuno(d.Accounts, d.Proxy, suno.New(d.Doer))
 	tun := handlers.NewTunnel(d.Tunnel, d.Keys)
 	syncH := handlers.NewSync(d.Sync)
 	authH := handlers.NewAuth(dash)

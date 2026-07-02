@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/enowdev/enowx/core/model"
 	"github.com/enowdev/enowx/core/pool"
@@ -28,35 +29,55 @@ func New(reg *provider.Registry, p *pool.Pool, d transport.Doer) *Proxy {
 	return &Proxy{reg: reg, pool: p, doer: d}
 }
 
-// Forward runs one request against the named provider and returns a stream.
+// maxRotations caps how many accounts a single request will try before giving up.
+const maxRotations = 4
+
+// Forward runs one request against the named provider and returns a stream,
+// rotating to the next account when one is dead/exhausted.
 func (p *Proxy) Forward(ctx context.Context, providerName string, req *model.Request) (model.Stream, error) {
 	prov, err := p.reg.Get(providerName)
 	if err != nil {
 		return nil, err
 	}
-	acc, err := p.pool.Pick(ctx, providerName)
-	if err != nil {
-		return nil, err
-	}
+	tried := map[int64]bool{}
+	var lastErr error
+	for i := 0; i < maxRotations; i++ {
+		acc, err := p.pool.PickExcept(ctx, providerName, tried)
+		if err != nil {
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+		tried[acc.ID] = true
 
-	hreq, err := prov.BuildRequest(req, acc)
-	if err != nil {
-		return nil, err
-	}
-	hreq = hreq.WithContext(ctx)
+		hreq, err := prov.BuildRequest(req, acc)
+		if err != nil {
+			return nil, err
+		}
+		hreq = hreq.WithContext(ctx)
 
-	resp, err := p.doer.Do(hreq)
-	if err != nil {
-		return nil, fmt.Errorf("upstream: %w", err)
+		resp, err := p.doer.Do(hreq)
+		if err != nil {
+			lastErr = fmt.Errorf("upstream: %w", err)
+			continue
+		}
+		if resp.StatusCode >= 400 {
+			out, herr := p.handleErr(ctx, prov, acc, resp)
+			lastErr = herr
+			// Rotate on account-level failures (dead/exhausted); return others.
+			if out == provider.OutcomeDead || out == provider.OutcomeExhausted {
+				continue
+			}
+			return nil, herr
+		}
+		return prov.ParseResponse(resp, req)
 	}
-	if resp.StatusCode >= 400 {
-		return nil, p.handleErr(ctx, prov, acc, resp)
-	}
-	return prov.ParseResponse(resp, req)
+	return nil, lastErr
 }
 
 // GenerateImage runs a text-to-image request against the named provider (which
-// must implement ImageGenerator), picking an account from the pool.
+// must implement ImageGenerator), rotating accounts on account-level failures.
 func (p *Proxy) GenerateImage(ctx context.Context, providerName string, req provider.ImageRequest) (*provider.ImageResult, error) {
 	prov, err := p.reg.Get(providerName)
 	if err != nil {
@@ -66,11 +87,74 @@ func (p *Proxy) GenerateImage(ctx context.Context, providerName string, req prov
 	if !ok {
 		return nil, fmt.Errorf("provider %s does not support image generation", providerName)
 	}
-	acc, err := p.pool.Pick(ctx, providerName)
+	tried := map[int64]bool{}
+	var lastErr error
+	for i := 0; i < maxRotations; i++ {
+		acc, err := p.pool.PickExcept(ctx, providerName, tried)
+		if err != nil {
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+		tried[acc.ID] = true
+		res, gerr := gen.GenerateImage(p.doer, acc, req)
+		if gerr == nil {
+			return res, nil
+		}
+		lastErr = gerr
+		if !p.reactErr(ctx, prov, acc.ID, gerr) {
+			return nil, gerr // not an account-level failure → don't rotate
+		}
+	}
+	return nil, lastErr
+}
+
+// GenerateMusic runs a text-to-music request against the named provider (which
+// must implement MusicGenerator), rotating accounts on account-level failures.
+func (p *Proxy) GenerateMusic(ctx context.Context, providerName string, req provider.MusicRequest) (*provider.MusicResult, error) {
+	prov, err := p.reg.Get(providerName)
 	if err != nil {
 		return nil, err
 	}
-	return gen.GenerateImage(p.doer, acc, req)
+	gen, ok := prov.(provider.MusicGenerator)
+	if !ok {
+		return nil, fmt.Errorf("provider %s does not support music generation", providerName)
+	}
+	tried := map[int64]bool{}
+	var lastErr error
+	for i := 0; i < maxRotations; i++ {
+		acc, err := p.pool.PickExcept(ctx, providerName, tried)
+		if err != nil {
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+		tried[acc.ID] = true
+		res, gerr := gen.GenerateMusic(p.doer, acc, req)
+		if gerr == nil {
+			return res, nil
+		}
+		lastErr = gerr
+		if !p.reactErr(ctx, prov, acc.ID, gerr) {
+			return nil, gerr
+		}
+	}
+	return nil, lastErr
+}
+
+// reactErr classifies an error string returned by a generator (image/music) and
+// marks the account exhausted/dead when it looks like an account-level failure,
+// returning true if the caller should rotate to another account.
+func (p *Proxy) reactErr(ctx context.Context, prov provider.Provider, id int64, err error) bool {
+	status := statusFromErr(err)
+	out := prov.Classify(status, []byte(err.Error()))
+	if out == provider.OutcomeDead || out == provider.OutcomeExhausted {
+		p.pool.React(ctx, id, out)
+		return true
+	}
+	return false
 }
 
 // ProbeResult captures what a warmup probe sent and got back.
@@ -161,12 +245,25 @@ func isAppError(body []byte) bool {
 	return false
 }
 
-func (p *Proxy) handleErr(ctx context.Context, prov provider.Provider, acc provider.Account, resp *http.Response) error {
+func (p *Proxy) handleErr(ctx context.Context, prov provider.Provider, acc provider.Account, resp *http.Response) (provider.Outcome, error) {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	out := prov.Classify(resp.StatusCode, body)
 	p.pool.React(ctx, acc.ID, out)
-	return fmt.Errorf("upstream %d: %s", resp.StatusCode, truncate(body, 300))
+	return out, fmt.Errorf("upstream %d: %s", resp.StatusCode, truncate(body, 300))
+}
+
+// statusFromErr extracts an HTTP status code embedded in a generator's error
+// string (e.g. "suno generate 429: ...", "insufficient" → 429).
+func statusFromErr(err error) int {
+	s := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(s, "insufficient"), strings.Contains(s, "429"), strings.Contains(s, "exhaust"), strings.Contains(s, "quota"):
+		return http.StatusTooManyRequests
+	case strings.Contains(s, "401"), strings.Contains(s, "403"), strings.Contains(s, "unauthorized"), strings.Contains(s, "invalid api key"):
+		return http.StatusUnauthorized
+	}
+	return http.StatusInternalServerError
 }
 
 func truncate(b []byte, n int) string {

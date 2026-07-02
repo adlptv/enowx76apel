@@ -229,10 +229,17 @@ func (h *Warmup) WarmAccount(ctx context.Context, acc *store.Account) (string, m
 	pacc := provider.Account{ID: acc.ID, Secret: acc.Secret, Creds: acc.Creds}
 
 	// Non-chat providers (e.g. Suno music) can't be probed with a chat request —
-	// accept them as active without a warmup call.
+	// accept them as active and just fetch usage/credit if supported.
 	if prov, err := h.reg.Get(acc.Provider); err == nil && !prov.Caps().Chat {
 		_ = h.store.SetStatus(ctx, acc.ID, "active")
-		return "active", map[string]any{"ok": true, "status": "active"}
+		out := map[string]any{"ok": true, "status": "active"}
+		if rep, ok := prov.(provider.UsageReporter); ok {
+			out["usage_supported"] = true
+			if u, uerr := rep.Usage(pacc); uerr == nil && u != nil {
+				out["usage"] = u
+			}
+		}
+		return "active", out
 	}
 
 	req := warmupRequest(acc.Provider)

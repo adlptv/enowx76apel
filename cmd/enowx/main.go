@@ -58,7 +58,7 @@ func main() {
 	reg.Register(kiro.New(doer, saveCreds))
 	reg.Register(codex.New(doer, saveCreds))
 	reg.Register(antigravity.New(doer, saveCreds))
-	reg.Register(sunoprovider.New())
+	reg.Register(sunoprovider.New(doer))
 
 	px := proxy.New(reg, pool.New(db.Accounts()), doer)
 	tun := tunnel.New(cfg.RuntimeDir, cfg.Port)

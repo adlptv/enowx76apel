@@ -111,6 +111,29 @@ func (c *Client) Generate(key string, req GenerateRequest) (string, error) {
 	return out.Data.TaskID, nil
 }
 
+// Credit returns the account's remaining Suno credits.
+func (c *Client) Credit(key string) (float64, error) {
+	r, _ := http.NewRequest(http.MethodGet, baseURL+"/api/v1/generate/credit", nil)
+	r.Header.Set("Authorization", "Bearer "+key)
+	resp, err := c.doer.Do(r)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("suno credit %d: %s", resp.StatusCode, truncate(raw))
+	}
+	var out struct {
+		Code int     `json:"code"`
+		Data float64 `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return 0, err
+	}
+	return out.Data, nil
+}
+
 // Poll fetches the current state of a generation task.
 func (c *Client) Poll(key, taskID string) (*TaskResult, error) {
 	u := baseURL + "/api/v1/generate/record-info?" + url.Values{"taskId": {taskID}}.Encode()

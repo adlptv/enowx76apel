@@ -17,12 +17,18 @@ func New(a store.AccountStore) *Pool { return &Pool{accounts: a} }
 
 // Pick returns the first active account for a provider.
 func (p *Pool) Pick(ctx context.Context, providerName string) (provider.Account, error) {
+	return p.PickExcept(ctx, providerName, nil)
+}
+
+// PickExcept returns the first active account for a provider whose id is not in
+// tried — used to rotate to the next account after one fails.
+func (p *Pool) PickExcept(ctx context.Context, providerName string, tried map[int64]bool) (provider.Account, error) {
 	rows, err := p.accounts.List(ctx, providerName)
 	if err != nil {
 		return provider.Account{}, err
 	}
 	for _, a := range rows {
-		if a.Status == "active" && !a.Disabled {
+		if a.Status == "active" && !a.Disabled && !tried[a.ID] {
 			return provider.Account{ID: a.ID, Secret: a.Secret, Creds: a.Creds}, nil
 		}
 	}
