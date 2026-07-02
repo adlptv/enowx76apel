@@ -3,6 +3,7 @@ import { Play, Square, Trash2, Plus, X, ScrollText, ExternalLink, Puzzle, AlertT
 import { AppShell, Empty } from "./shell";
 import { Tooltip } from "../components/Tooltip";
 import { useDialog } from "../os/dialog";
+import { notifyPluginsChanged } from "../os/pluginBus";
 import { pluginsApi, marketApi, type PluginManifest, type PluginRuntime, type MarketPlugin } from "../lib/api";
 
 const RUNTIMES = [
@@ -44,6 +45,7 @@ export function PluginsApp() {
     try {
       await fn();
       await load();
+      notifyPluginsChanged(); // update the desktop's plugin apps immediately
     } catch (e) {
       setError(e instanceof Error ? e.message : "action failed");
     } finally {
@@ -180,6 +182,7 @@ function CreateModal({ runtimes, onClose, onCreated }: { runtimes: PluginRuntime
       const r = await pluginsApi.create(id, name.trim(), runtime, starter);
       if (icon) await pluginsApi.uploadIcon(id, icon).catch(() => {});
       setDone({ id, path: r.path });
+      notifyPluginsChanged(); // show the new plugin app immediately
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
     } finally {
@@ -311,6 +314,7 @@ function Marketplace({ onInstalled }: { onInstalled: () => void }) {
       const r = await marketApi.install(p.id);
       setNote(`Installed ${p.name}. Find it in My Plugins.`);
       onInstalled();
+      notifyPluginsChanged(); // surface the installed plugin app immediately
       void r;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "install failed";

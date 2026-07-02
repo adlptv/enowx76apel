@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, AlertTriangle, Puzzle } from "lucide-react";
 import { pluginsApi, type PluginManifest } from "../lib/api";
+import { onPluginsChanged } from "./pluginBus";
 // pluginsApi.iconUrl builds the icon image URL for a plugin.
 import type { DesktopApp } from "./types";
 
@@ -66,7 +67,11 @@ export function usePluginApps(): DesktopApp[] {
     const load = () => pluginsApi.list().then((r) => setPlugins(r.plugins ?? [])).catch(() => {});
     load();
     window.addEventListener("focus", load);
-    return () => window.removeEventListener("focus", load);
+    const off = onPluginsChanged(load); // realtime refresh on create/delete
+    return () => {
+      window.removeEventListener("focus", load);
+      off();
+    };
   }, []);
 
   return plugins.map((p) => ({
