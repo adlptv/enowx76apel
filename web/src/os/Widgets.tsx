@@ -181,11 +181,13 @@ function PoolWidget({ accounts, onOpen }: { accounts: Account[] | null; onOpen: 
   const byProvider: Record<string, Record<string, number>> = {};
   let total = 0;
   let active = 0;
+  let dead = 0;
   for (const a of accounts ?? []) {
     byProvider[a.provider] ??= {};
     byProvider[a.provider][a.status] = (byProvider[a.provider][a.status] ?? 0) + 1;
     total++;
     if (a.status === "active") active++;
+    else if (a.status === "banned" || a.disabled) dead++;
   }
   const providers = Object.keys(byProvider);
 
@@ -197,24 +199,15 @@ function PoolWidget({ accounts, onOpen }: { accounts: Account[] | null; onOpen: 
         <p className="text-sm text-white/40">No accounts yet. Add one in Providers.</p>
       ) : (
         <>
-          {/* Fixed height so the widget never grows with the provider count —
-              the list scrolls internally instead of pushing widgets below down. */}
-          <div className="h-[132px] space-y-1.5 overflow-y-auto pr-1">
-            {providers.map((p) => (
-              <div key={p} className="flex items-center justify-between text-xs">
-                <span className="text-white/70">{p}</span>
-                <span className="flex gap-2 tabular-nums">
-                  {Object.entries(byProvider[p]).map(([st, n]) => (
-                    <span key={st} className={statusTone(st)}>
-                      {n} {st}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            ))}
+          {/* Compact summary (no per-provider list) so the card stays small,
+              like the API key widget. Details live in the Accounts app. */}
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-semibold tabular-nums text-white">{active}</span>
+            <span className="text-xs text-white/40">/ {total} active</span>
           </div>
-          <div className="mt-3 border-t border-white/10 pt-2 text-[11px] text-white/40">
-            {total} accounts · {active} active
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            <span className="text-white/40">{providers.length} provider{providers.length === 1 ? "" : "s"}</span>
+            {dead > 0 && <span className={statusTone("banned")}>{dead} down</span>}
           </div>
         </>
       )}
