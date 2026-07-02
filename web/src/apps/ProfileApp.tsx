@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Crown, Check, Gift, X } from "lucide-react";
+import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Crown, Check, Gift, X, Search } from "lucide-react";
+import { createPortal } from "react-dom";
 import { subscriptionApi, type SubscriptionStatus, type CouponPreview, type UserHit } from "../lib/api";
 import { AppShell } from "./shell";
 import { Tooltip } from "../components/Tooltip";
@@ -217,80 +218,107 @@ function SubscriptionCard() {
   );
 }
 
-// GiftPremium gifts Premium to another user: search by username, optional coupon,
-// then pay (or claim free). The recipient must not already be Premium.
+// GiftPremium gifts Premium (full price) to another user, in a modal: search a
+// recipient by username/display name, then pay. The recipient must not already be
+// Premium.
 function GiftPremium() {
   const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-[11px] text-white/50 hover:text-white/80">
+        <Gift className="h-3.5 w-3.5" /> Gift Premium to a friend
+      </button>
+      {open && <GiftModal onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function GiftModal({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<UserHit[]>([]);
+  const [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<UserHit | null>(null);
-  const [coupon, setCoupon] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  // Realtime search: any partial of username or display name.
   useEffect(() => {
-    if (!open || pick || q.trim().length < 2) { setHits([]); return; }
+    if (pick || q.trim().length < 2) { setHits([]); return; }
+    setSearching(true);
     const t = setTimeout(() => {
-      subscriptionApi.searchUsers(q.trim()).then((r) => setHits(r.users ?? [])).catch(() => setHits([]));
-    }, 300);
+      subscriptionApi.searchUsers(q.trim())
+        .then((r) => setHits(r.users ?? []))
+        .catch(() => setHits([]))
+        .finally(() => setSearching(false));
+    }, 250);
     return () => clearTimeout(t);
-  }, [q, open, pick]);
+  }, [q, pick]);
 
   const gift = async () => {
     if (!pick) return;
     setBusy(true); setErr(""); setMsg("");
     try {
-      const r = await subscriptionApi.gift(pick.username, coupon.trim() || undefined);
-      if (r.free) { setMsg(`Gifted Premium to ${pick.display_name || pick.username}! 🎁`); setPick(null); setQ(""); setCoupon(""); }
-      else if (r.pay_url) window.open(r.pay_url, "_blank", "noopener");
+      const r = await subscriptionApi.gift(pick.username);
+      if (r.pay_url) { window.open(r.pay_url, "_blank", "noopener"); setMsg("Opening payment…"); }
+      else setMsg("Gift started.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "gift failed");
     } finally { setBusy(false); }
   };
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-[11px] text-white/50 hover:text-white/80">
-        <Gift className="h-3.5 w-3.5" /> Gift Premium to a friend
-      </button>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/40"><Gift className="h-3.5 w-3.5" /> Gift Premium</div>
-      {pick ? (
-        <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
-          {pick.avatar_url && <img src={pick.avatar_url} alt="" className="h-5 w-5 rounded-full" />}
-          <span className="flex-1 truncate text-xs text-white">{pick.display_name || pick.username}</span>
-          <button onClick={() => { setPick(null); setQ(""); }} className="text-white/40 hover:text-white"><X className="h-3.5 w-3.5" /></button>
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => !busy && onClose()}>
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0e1016] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><Gift className="h-4 w-4 text-indigo-300" /> Gift Premium</div>
+          <button onClick={onClose} className="rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
-      ) : (
-        <div className="relative">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a username…" className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/25" />
-          {hits.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-white/10 bg-[#0e1016] shadow-xl">
-              {hits.map((h) => (
-                <button key={h.id} onClick={() => { setPick(h); setHits([]); }} className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-white/5">
-                  {h.avatar_url && <img src={h.avatar_url} alt="" className="h-5 w-5 rounded-full" />}
-                  <span className="truncate text-white/80">{h.display_name || h.username}</span>
-                  <span className="truncate text-white/30">@{h.username}</span>
-                </button>
-              ))}
+        <div className="space-y-3 p-4">
+          <p className="text-[11px] text-white/45">Gift one month of Premium to another member — full price, no coupon.</p>
+
+          {pick ? (
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+              {pick.avatar_url ? <img src={pick.avatar_url} alt="" className="h-9 w-9 rounded-full" /> : <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-sm text-white/60">{(pick.display_name || pick.username).charAt(0).toUpperCase()}</div>}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-white">{pick.display_name || pick.username}</div>
+                <div className="truncate text-[11px] text-white/40">@{pick.username}</div>
+              </div>
+              <button onClick={() => { setPick(null); setQ(""); }} className="text-white/40 hover:text-white"><X className="h-4 w-4" /></button>
+            </div>
+          ) : (
+            <div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/25" />
+                <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search username or name…" className="w-full rounded-lg border border-white/10 bg-black/30 py-2 pl-8 pr-2 text-sm text-white outline-none focus:border-white/25" />
+                {searching && <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-white/30" />}
+              </div>
+              {q.trim().length >= 2 && (
+                <div className="mt-1.5 max-h-56 overflow-auto rounded-lg border border-white/10">
+                  {hits.length === 0 && !searching ? (
+                    <div className="px-3 py-3 text-center text-[11px] text-white/35">No users found.</div>
+                  ) : hits.map((h) => (
+                    <button key={h.id} onClick={() => { setPick(h); setHits([]); }} className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2 text-left last:border-0 hover:bg-white/5">
+                      {h.avatar_url ? <img src={h.avatar_url} alt="" className="h-8 w-8 rounded-full" /> : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs text-white/60">{(h.display_name || h.username).charAt(0).toUpperCase()}</div>}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium text-white">{h.display_name || h.username}</div>
+                        <div className="truncate text-[10px] text-white/40">@{h.username}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          <button onClick={gift} disabled={!pick || busy} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Gift className="h-3.5 w-3.5" />} Gift Premium
+          </button>
+          {msg && <p className="text-[11px] text-emerald-300">{msg}</p>}
+          {err && <p className="text-[11px] text-red-300">{err}</p>}
         </div>
-      )}
-      <input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="Coupon (optional)" className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/25" />
-      <div className="flex items-center gap-2">
-        <button onClick={gift} disabled={!pick || busy} className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90 disabled:opacity-50">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Gift className="h-3.5 w-3.5" />} Gift
-        </button>
-        <button onClick={() => { setOpen(false); setPick(null); setQ(""); setCoupon(""); setErr(""); setMsg(""); }} className="text-[11px] text-white/40 hover:text-white/70">Cancel</button>
       </div>
-      {msg && <p className="text-[11px] text-emerald-300">{msg}</p>}
-      {err && <p className="text-[11px] text-red-300">{err}</p>}
-    </div>
+    </div>,
+    document.body,
   );
 }
