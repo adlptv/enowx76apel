@@ -493,6 +493,7 @@ export interface SyncUser {
   kleos?: number;
   is_moderator?: boolean;
   is_premium?: boolean;
+  is_donor?: boolean;
   entitlements?: string[];
   display_name?: string;
   bio?: string;
@@ -1001,6 +1002,7 @@ export const chatApi = {
 export const modApi = {
   setModerator: (userId: string, on: boolean) => api.post<{ is_moderator: boolean }>(`/api/admin/users/${userId}/moderator`, { on }),
   setPremium: (userId: string, on: boolean) => api.post<{ is_premium: boolean }>(`/api/admin/users/${userId}/premium`, { on }),
+  setDonor: (userId: string, on: boolean) => api.post<{ is_donor: boolean }>(`/api/admin/users/${userId}/donor`, { on }),
 };
 
 export interface Notification {
@@ -1062,6 +1064,7 @@ export interface PublicProfile {
   pronouns: string;
   is_moderator?: boolean;
   is_premium?: boolean;
+  is_donor?: boolean;
   equipped?: Equipped;
   banner_url?: string;
   links: ProfileLink[];

@@ -1,4 +1,4 @@
-import { ShieldCheck, Coins, Link as LinkIcon, Crown } from "lucide-react";
+import { ShieldCheck, Coins, Link as LinkIcon, Crown, HandCoins } from "lucide-react";
 import type { TopRole, ProfileLink, Equipped } from "../lib/api";
 
 // CardProfile is the shape the card renders. Both SyncUser (self) and
@@ -20,6 +20,7 @@ export interface CardProfile {
   kleos?: number;
   is_moderator?: boolean;
   is_premium?: boolean;
+  is_donor?: boolean;
   equipped?: Equipped;
   created_at?: string;
 }
@@ -103,6 +104,7 @@ export function ProfileCard({ p, footer, compact }: { p: CardProfile; footer?: R
           {p.top_role?.name ? <RoleBadge role={p.top_role} /> : p.plan && <PlanBadge plan={p.plan} />}
           {p.wears_tag && <TagBadge tag={p.guild_tag} />}
           {p.is_premium && <PremiumBadge />}
+          {p.is_donor && <DonorBadge />}
           {p.is_moderator && <ModBadge />}
           {eq?.badge && (
             <span className="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-200 ring-1 ring-inset ring-fuchsia-400/20">
@@ -188,6 +190,14 @@ function PremiumBadge() {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-400/30">
       <Crown className="h-3 w-3" /> Premium
+    </span>
+  );
+}
+
+function DonorBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-rose-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300 ring-1 ring-inset ring-rose-400/30">
+      <HandCoins className="h-3 w-3" /> Donor
     </span>
   );
 }
