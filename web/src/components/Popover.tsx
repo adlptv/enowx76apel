@@ -20,13 +20,17 @@ export function clipTop(el: HTMLElement): number {
   return p ? Math.max(p.getBoundingClientRect().top, 0) : 0;
 }
 
-// shouldFlipUp reports whether a down-anchored panel of height `h` at rect `r`
-// should open upward given its clipping container. Shared by Popover + menus.
+// shouldFlipUp reports whether a down-anchored panel should open upward. It
+// measures against the ANCHOR (the offset parent), not the panel's own rect, so
+// the decision is stable regardless of whether the panel is currently flipped —
+// otherwise flipping would move the panel and re-trigger the opposite decision.
 export function shouldFlipUp(el: HTMLElement): boolean {
-  const r = el.getBoundingClientRect();
-  const spaceBelow = clipBottom(el) - r.top;
-  const spaceAbove = r.top - clipTop(el);
-  return spaceBelow < el.offsetHeight + 8 && spaceAbove > spaceBelow;
+  const anchor = (el.offsetParent as HTMLElement) ?? el;
+  const a = anchor.getBoundingClientRect();
+  const h = el.offsetHeight;
+  const spaceBelow = clipBottom(el) - a.bottom; // room under the anchor
+  const spaceAbove = a.top - clipTop(el); // room above the anchor
+  return spaceBelow < h + 8 && spaceAbove > spaceBelow;
 }
 
 // Reusable popover panel with click-away + Escape to dismiss. Render it
@@ -65,8 +69,9 @@ export function Popover({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Auto-flip: measure the panel against the viewport and open upward when the
-  // bottom would be clipped but there's room above.
+  // Auto-flip: measure the panel against its clipping container and open upward
+  // when it wouldn't fit below. Re-measures on size changes (async content like a
+  // profile card grows after its fetch resolves) via a ResizeObserver.
   useLayoutEffect(() => {
     if (valign !== "auto") {
       setUp(valign === "up");
@@ -74,10 +79,11 @@ export function Popover({
     }
     const el = ref.current;
     if (!el) return;
-    // Clip against the nearest scrollable/overflow ancestor (e.g. the chat panel,
-    // whose composer sits below it) — not just the window — so the panel flips
-    // up when it would be hidden by that container's edge, not only the screen.
-    setUp(shouldFlipUp(el));
+    const measure = () => setUp(shouldFlipUp(el));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [valign, children]);
 
   const pos =
