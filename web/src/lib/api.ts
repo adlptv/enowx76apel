@@ -492,6 +492,7 @@ export interface SyncUser {
   guild_tag?: string;
   kleos?: number;
   is_moderator?: boolean;
+  is_premium?: boolean;
   entitlements?: string[];
   display_name?: string;
   bio?: string;
@@ -999,6 +1000,7 @@ export const chatApi = {
 
 export const modApi = {
   setModerator: (userId: string, on: boolean) => api.post<{ is_moderator: boolean }>(`/api/admin/users/${userId}/moderator`, { on }),
+  setPremium: (userId: string, on: boolean) => api.post<{ is_premium: boolean }>(`/api/admin/users/${userId}/premium`, { on }),
 };
 
 export interface Notification {
@@ -1059,6 +1061,7 @@ export interface PublicProfile {
   primary_color: string;
   pronouns: string;
   is_moderator?: boolean;
+  is_premium?: boolean;
   equipped?: Equipped;
   banner_url?: string;
   links: ProfileLink[];
