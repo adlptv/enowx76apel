@@ -28,6 +28,28 @@ import type { AppId, Location, Side } from "./types";
 
 type CenterView = "widget" | "terminal" | "chat" | "apitest" | "apps" | "marketplace" | "admin" | "docs";
 
+// CENTER_VIEWS is the single source of truth for the top-bar views and their
+// leader-key shortcuts. Order here assigns the number (1..N) — no hardcoded keys,
+// so nav + shortcuts never drift. `gate` restricts a view to a capability; a
+// gated view a user lacks is skipped entirely (no tab, no number, no shortcut),
+// which keeps numbering flexible per role (e.g. Admin only appears for mods).
+type CenterViewDef = { id: CenterView; label: string; icon: typeof LayoutGrid; gate?: string };
+const CENTER_VIEWS: CenterViewDef[] = [
+  { id: "widget", label: "Widget", icon: LayoutGrid },
+  { id: "terminal", label: "Terminal", icon: SquareTerminal },
+  { id: "chat", label: "Chat", icon: Bot },
+  { id: "apitest", label: "API Test", icon: FlaskConical },
+  { id: "apps", label: "Apps", icon: Grid3x3 },
+  { id: "marketplace", label: "Market", icon: Store },
+  { id: "docs", label: "Docs", icon: BookOpen },
+  { id: "admin", label: "Admin", icon: ShieldCheck, gate: "chat.moderate" },
+];
+
+// visibleViews returns the views the user may see, each with its 1-based key.
+function visibleViews(has: (cap: string) => boolean): (CenterViewDef & { key: string })[] {
+  return CENTER_VIEWS.filter((v) => !v.gate || has(v.gate)).map((v, i) => ({ ...v, key: String(i + 1) }));
+}
+
 export function Desktop() {
   const profile = useProfile();
   const isMod = profile.has("chat.moderate");
@@ -84,9 +106,11 @@ export function Desktop() {
     c: "profile",
   };
   const leaderActive = useShortcuts((k) => {
-    const v: Record<string, CenterView> = { "1": "widget", "2": "terminal", "3": "chat", "4": "apitest", "5": "apps", "6": "docs", "7": "admin", "8": "marketplace" };
-    if (v[k]) {
-      setView(v[k]);
+    // Number keys map to the views this user can actually see (role-aware), so a
+    // non-mod's Ctrl+7 never reaches Admin and numbers stay gap-free.
+    const view = visibleViews(profile.has).find((v) => v.key === k);
+    if (view) {
+      setView(view.id);
       return;
     }
     if (appShortcuts[k]) openApp(appShortcuts[k]);
@@ -151,7 +175,7 @@ export function Desktop() {
         </div>
       </div>
 
-      <TopBar nav={<CenterNav view={view} onView={setView} isMod={isMod} />} />
+      <TopBar nav={<CenterNav view={view} onView={setView} has={profile.has} />} />
 
       {/* Full-page profile overlay (opened via openProfile from anywhere). */}
       <ProfileViewer />
@@ -199,17 +223,8 @@ export function Desktop() {
 
 // Compact center-view switch that lives in the top bar. The leader-key hint is
 // shown in each tab's tooltip (tap Ctrl/Alt then the number).
-function CenterNav({ view, onView, isMod }: { view: CenterView; onView: (v: CenterView) => void; isMod: boolean }) {
-  const tabs: { id: CenterView; label: string; icon: typeof LayoutGrid; key: string }[] = [
-    { id: "widget", label: "Widget", icon: LayoutGrid, key: "1" },
-    { id: "terminal", label: "Terminal", icon: SquareTerminal, key: "2" },
-    { id: "chat", label: "Chat", icon: Bot, key: "3" },
-    { id: "apitest", label: "API Test", icon: FlaskConical, key: "4" },
-    { id: "apps", label: "Apps", icon: Grid3x3, key: "5" },
-    { id: "marketplace", label: "Market", icon: Store, key: "8" },
-    ...(isMod ? [{ id: "admin" as const, label: "Admin", icon: ShieldCheck, key: "7" }] : []),
-    { id: "docs", label: "Docs", icon: BookOpen, key: "6" },
-  ];
+function CenterNav({ view, onView, has }: { view: CenterView; onView: (v: CenterView) => void; has: (cap: string) => boolean }) {
+  const tabs = visibleViews(has);
   return (
     <div className="flex items-center gap-0.5">
       {tabs.map((t) => {
