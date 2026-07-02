@@ -79,6 +79,11 @@ func main() {
 	if err := customMgr.LoadAll(context.Background()); err != nil {
 		log.Printf("custom providers: load: %v", err)
 	}
+
+	// Full cloud sync: let the sync manager snapshot/apply accounts, gateway
+	// keys, aliases, and custom providers (custom providers register live).
+	syncMgr.SetFullSync(db.Accounts(), db.Keys(), db.Aliases(), db.CustomProviders(),
+		customMgr.RegisterOne, customMgr.UnregisterOne)
 	// Maintain the live channel (pull side) and the automatic push side. Both
 	// are no-ops until logged in; auto-push also obeys the global toggle.
 	go syncMgr.RunLive(context.Background(), nil)

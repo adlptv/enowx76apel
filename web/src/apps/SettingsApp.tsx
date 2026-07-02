@@ -47,8 +47,9 @@ export function SettingsApp() {
 // CloudSyncCard configures how cloud sync behaves: the global automatic-sync
 // toggle, status, and a manual "Sync now". Identity (login / sign out / role)
 // lives in the Profile app. Login-gated — it points to Profile when signed out.
-// The dashboard password and session are never synced; only safe data
-// (playlists, settings) flows to the cloud.
+// The dashboard password and session are never synced. Playlists sync for
+// everyone; providers/accounts/keys/aliases sync with a subscription
+// (cloud.sync.full) — credentials are encrypted before upload.
 function CloudSyncCard() {
   const profile = useProfile();
   const [busy, setBusy] = useState("");
@@ -141,6 +142,12 @@ function CloudSyncCard() {
         )}
         {error && <span className="text-[11px] text-red-300">{error}</span>}
       </div>
+
+      <p className="text-[11px] leading-relaxed text-white/40">
+        {profile.has("cloud.sync.full")
+          ? "Full sync is on: your providers, accounts, gateway keys and aliases sync too — credentials are encrypted before they leave this device."
+          : "Playlists sync on every plan. A subscription unlocks full sync for your providers, accounts, keys and aliases."}
+      </p>
     </div>
   );
 }

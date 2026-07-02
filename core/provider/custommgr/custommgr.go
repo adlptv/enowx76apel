@@ -28,6 +28,20 @@ func New(reg *provider.Registry, s store.CustomProviderStore, cat Catalog) *Mana
 	return &Manager{reg: reg, store: s, cat: cat}
 }
 
+// RegisterOne registers an already-persisted provider live (used by sync when a
+// custom provider is pulled from the cloud).
+func (m *Manager) RegisterOne(p store.CustomProvider) { m.register(p) }
+
+// UnregisterOne removes a provider from the registry/prefix/catalog by
+// prefix+name (used by sync on a pulled deletion).
+func (m *Manager) UnregisterOne(prefix, name string) {
+	m.reg.Unregister(name)
+	proxy.RemovePrefix(prefix, name)
+	if m.cat.Remove != nil {
+		m.cat.Remove(name)
+	}
+}
+
 // LoadAll registers every stored custom provider (called on boot).
 func (m *Manager) LoadAll(ctx context.Context) error {
 	list, err := m.store.List(ctx)

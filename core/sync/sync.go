@@ -46,9 +46,27 @@ type Manager struct {
 	logs     store.LogStore
 	http     *http.Client
 
+	// Optional stores for full sync (accounts/keys/aliases/custom providers).
+	// Set via SetFullSync; nil disables the corresponding type.
+	accounts store.AccountStore
+	keys     store.KeyStore
+	aliases  store.AliasStore
+	custom   store.CustomProviderStore
+	// onCustomProvider re-registers a pulled custom provider live (custommgr).
+	onCustomProvider func(store.CustomProvider)
+	onCustomDelete   func(prefix, name string)
+
 	subsMu stdsync.Mutex
 	subs   map[int]chan LiveEvent
 	nextID int
+}
+
+// SetFullSync wires the extra local stores (and a live custom-provider register
+// hook) so the manager can snapshot/apply accounts, keys, aliases, and custom
+// providers. Called once at startup after the stores + custommgr exist.
+func (m *Manager) SetFullSync(a store.AccountStore, k store.KeyStore, al store.AliasStore, cp store.CustomProviderStore, onCP func(store.CustomProvider), onDel func(prefix, name string)) {
+	m.accounts, m.keys, m.aliases, m.custom = a, k, al, cp
+	m.onCustomProvider, m.onCustomDelete = onCP, onDel
 }
 
 // LiveEvent is a cloud event relayed to UI subscribers (e.g. chat messages).
@@ -922,6 +940,8 @@ func (m *Manager) Sync(ctx context.Context) (pushed, pulled int, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	// Full sync (accounts/keys/aliases/custom providers) when entitled.
+	m.fullSyncItems(ctx, local)
 
 	// Server manifest keyed by item id.
 	var man struct {
@@ -965,7 +985,11 @@ func (m *Manager) Sync(ctx context.Context) (pushed, pulled int, err error) {
 	}
 	for _, ri := range pull.Items {
 		if ri.Type != typePlaylist {
-			continue // other types handled elsewhere (settings, encrypted creds…)
+			// Full-sync types (accounts/keys/aliases/custom providers).
+			if m.applyFullItem(ctx, ri) {
+				pulled++
+			}
+			continue
 		}
 		li, have := local[ri.ItemID]
 		if have && li.UpdatedAt >= ri.UpdatedAt {
@@ -1019,6 +1043,9 @@ func (m *Manager) cursor(ctx context.Context) int64 {
 
 // localPlaylistItems snapshots local playlists as sync items keyed by item id.
 func (m *Manager) localPlaylistItems(ctx context.Context) (map[string]item, error) {
+	if m.music == nil {
+		return map[string]item{}, nil
+	}
 	pls, err := m.music.PlaylistsForSync(ctx)
 	if err != nil {
 		return nil, err
