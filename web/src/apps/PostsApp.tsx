@@ -6,7 +6,8 @@ import { ProfileCard } from "../components/ProfileCard";
 import { EmojiPicker } from "../components/EmojiPicker";
 import { useProfile } from "../os/useProfile";
 import { useDialog } from "../os/dialog";
-import { useFeed, loadFeed, createPost, upvotePost, reactPost, editPost, deletePost } from "../os/postsBus";
+import { useFeed, loadFeed, loadMoreFeed, createPost, upvotePost, reactPost, editPost, deletePost } from "../os/postsBus";
+import { RowSkeleton } from "../components/Skeleton";
 import { openProfile } from "../os/profileViewer";
 import { openPost, closePost, usePostViewer } from "../os/postViewer";
 import { useImageAttach } from "../os/useImageAttach";
@@ -38,12 +39,24 @@ export function PostsApp() {
 }
 
 function Feed() {
-  const { posts, categories, sort, category, loading } = useFeed();
+  const { posts, categories, sort, category, loading, loadingMore, hasMore } = useFeed();
   const myUsername = useProfile().user?.username;
   const [composing, setComposing] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<{ posts: SearchPostHit[]; users: SearchUserHit[] } | null>(null);
   const [searching, setSearching] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll: load the next page when the bottom sentinel comes into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreFeed();
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [posts.length, hasMore, loadingMore]);
 
   // Debounced search; clears to show the feed when the box is empty.
   useEffect(() => {
@@ -118,11 +131,15 @@ function Feed() {
       {composing && <Composer categories={categories.map((c) => c)} onClose={() => setComposing(false)} />}
 
       {loading && posts.length === 0 ? (
-        <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-white/30" /></div>
+        <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <RowSkeleton key={i} />)}</div>
       ) : posts.length === 0 ? (
         <div className="py-10 text-center text-sm text-white/40">No posts yet — be the first.</div>
       ) : (
-        posts.map((p) => <PostCard key={p.id} p={p} myUsername={myUsername} />)
+        <>
+          {posts.map((p) => <PostCard key={p.id} p={p} myUsername={myUsername} />)}
+          {loadingMore && <RowSkeleton />}
+          {hasMore && <div ref={sentinelRef} className="h-4" />}
+        </>
       )}
       </>
       )}

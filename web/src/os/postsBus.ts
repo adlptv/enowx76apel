@@ -9,7 +9,10 @@ let categories: PostCategory[] = [];
 let sort = "hot";
 let category = "";
 let loading = false;
+let loadingMore = false;
+let hasMore = true;
 let es: EventSource | null = null;
+const PAGE = 25; // matches the server's postPageSize
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -20,15 +23,46 @@ export async function loadFeed(opts?: { sort?: string; category?: string }) {
   if (opts?.sort !== undefined) sort = opts.sort;
   if (opts?.category !== undefined) category = opts.category;
   loading = true;
+  hasMore = true;
   emit();
   try {
     const r = await postsApi.list({ sort, category });
     posts = r.posts ?? [];
+    hasMore = (r.posts?.length ?? 0) >= PAGE;
     if (r.categories) categories = r.categories;
   } catch {
     /* keep old */
   } finally {
     loading = false;
+    emit();
+  }
+}
+
+// loadMore appends the next page (forward infinite scroll). Ranked sorts (hot)
+// paginate by offset; recency sorts (new) by a `before` cursor on the last id.
+export async function loadMoreFeed() {
+  if (loadingMore || loading || !hasMore || posts.length === 0) return;
+  loadingMore = true;
+  emit();
+  try {
+    const ranked = sort !== "new";
+    const r = await postsApi.list({
+      sort,
+      category,
+      ...(ranked ? { offset: posts.length } : { before: posts[posts.length - 1].id }),
+    });
+    const next = r.posts ?? [];
+    if (next.length === 0) {
+      hasMore = false;
+    } else {
+      const seen = new Set(posts.map((p) => p.id));
+      posts = [...posts, ...next.filter((p) => !seen.has(p.id))];
+      hasMore = next.length >= PAGE;
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    loadingMore = false;
     emit();
   }
 }
@@ -120,6 +154,8 @@ export interface FeedState {
   sort: string;
   category: string;
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
 }
 
 export function useFeed(): FeedState {
@@ -133,5 +169,5 @@ export function useFeed(): FeedState {
       listeners.delete(l);
     };
   }, []);
-  return { posts, categories, sort, category, loading };
+  return { posts, categories, sort, category, loading, loadingMore, hasMore };
 }

@@ -583,10 +583,24 @@ const ReasoningBlock = memo(function ReasoningBlock({ content }: { content: stri
   );
 });
 
+const AI_WINDOW = 40; // render only the last N messages so long chats stay light
+
 function Conversation({ msgs, progress }: { msgs: ChatMsg[]; progress: Record<string, string> }) {
-  const items = useMemo(() => buildItems(msgs), [msgs]);
+  // Windowed rendering: only build items for the tail; a button reveals more.
+  const [shown, setShown] = useState(AI_WINDOW);
+  const hidden = Math.max(0, msgs.length - shown);
+  const windowMsgs = useMemo(() => (hidden > 0 ? msgs.slice(-shown) : msgs), [msgs, shown, hidden]);
+  const items = useMemo(() => buildItems(windowMsgs), [windowMsgs]);
   return (
     <>
+      {hidden > 0 && (
+        <button
+          onClick={() => setShown((n) => n + AI_WINDOW)}
+          className="mx-auto block rounded-lg border border-white/10 px-3 py-1 text-xs text-white/50 hover:bg-white/5"
+        >
+          Show earlier messages ({hidden})
+        </button>
+      )}
       {items.map((it) => {
         switch (it.kind) {
           case "user":
