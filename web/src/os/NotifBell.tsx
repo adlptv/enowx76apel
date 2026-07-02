@@ -34,7 +34,7 @@ export function NotifBell() {
         )}
       </button>
       {open && (
-        <Popover onClose={() => setOpen(false)} anchor="right" className="top-6 w-72">
+        <Popover onClose={() => setOpen(false)} anchor="right" valign="down" className="w-72">
           <div className="max-h-80 overflow-auto rounded-xl border border-white/10 bg-[#0e1016] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Notifications</span>

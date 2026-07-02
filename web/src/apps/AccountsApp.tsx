@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Search, Trash2, Power, PowerOff, RefreshCw, Zap, Boxes, X, Copy, Check, Plus, Play, Loader2, MoreVertical, Download } from "lucide-react";
 import { AppShell } from "./shell";
 import { ProviderIcon } from "../components/ProviderIcon";
@@ -488,7 +488,16 @@ function AccountMenu({
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Flip the menu upward when it would be clipped by the bottom of the viewport.
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current) return;
+    const r = menuRef.current.getBoundingClientRect();
+    setUp(r.bottom > window.innerHeight - 8 && r.top - menuRef.current.offsetHeight > 8);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -523,7 +532,7 @@ function AccountMenu({
         <MoreVertical className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-44 overflow-hidden rounded-lg border border-white/10 bg-[#14161d] py-1 shadow-xl">
+        <div ref={menuRef} className={`absolute right-0 z-30 w-44 overflow-hidden rounded-lg border border-white/10 bg-[#14161d] py-1 shadow-xl ${up ? "bottom-full mb-1" : "mt-1"}`}>
           <button className={item} onClick={run(onWarmup)}>
             <Zap className="h-3.5 w-3.5" /> Warm up
           </button>
