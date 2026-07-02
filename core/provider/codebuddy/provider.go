@@ -14,21 +14,40 @@ import (
 	"github.com/enowdev/enowx/core/provider/oaistream"
 )
 
-const endpoint = "https://www.codebuddy.ai/v2/chat/completions"
+// variant captures what differs between the global (.ai) and China (.cn)
+// CodeBuddy upstreams: provider name, base host, and the X-Domain header value.
+type variant struct {
+	name   string
+	base   string // e.g. "https://www.codebuddy.ai"
+	domain string // X-Domain header value
+}
 
-type Provider struct{ ids identifiers }
+var (
+	variantGlobal = variant{name: "codebuddy", base: "https://www.codebuddy.ai", domain: "www.codebuddy.ai"}
+	// CodeBuddy CN routes through Tencent's copilot host.
+	variantCN = variant{name: "codebuddy-cn", base: "https://copilot.tencent.com", domain: "www.codebuddy.cn"}
+)
 
-func New() *Provider { return &Provider{} }
+type Provider struct {
+	ids identifiers
+	v   variant
+}
 
-func (p *Provider) Name() string        { return "codebuddy" }
+// New is the global CodeBuddy (.ai) provider.
+func New() *Provider { return &Provider{v: variantGlobal} }
+
+// NewCN is the CodeBuddy CN (China) provider — same wire format, different host.
+func NewCN() *Provider { return &Provider{v: variantCN} }
+
+func (p *Provider) Name() string        { return p.v.name }
 func (p *Provider) Caps() provider.Caps { return provider.Caps{Chat: true, Images: true} }
 
 func (p *Provider) BuildRequest(req *model.Request, acc provider.Account) (*http.Request, error) {
-	r, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(convert.OpenAIBody(req)))
+	r, err := http.NewRequest(http.MethodPost, p.v.base+"/v2/chat/completions", bytes.NewReader(convert.OpenAIBody(req)))
 	if err != nil {
 		return nil, err
 	}
-	p.ids.apply(r.Header, "Bearer "+strings.TrimSpace(acc.Cred("api_key")))
+	p.ids.apply(r.Header, p.v.domain, "Bearer "+strings.TrimSpace(acc.Cred("api_key")))
 	return r, nil
 }
 

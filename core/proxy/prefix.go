@@ -6,28 +6,31 @@ import "strings"
 // "kr/claude-sonnet-4.5") to the internal provider name. The long form is also
 // accepted. Keep in sync with the display prefixes the model list exposes.
 var providerByPrefix = map[string]string{
-	"kr":        "kiro",
-	"kiro":      "kiro",
-	"cb":        "codebuddy",
-	"codebuddy": "codebuddy",
-	"cx":          "codex",
-	"codex":       "codex",
-	"ag":          "antigravity",
-	"antigravity": "antigravity",
-	"sn":          "suno",
-	"suno":        "suno",
-	"ld":          "leonardo",
-	"leonardo":    "leonardo",
+	"kr":           "kiro",
+	"kiro":         "kiro",
+	"cb":           "codebuddy",
+	"codebuddy":    "codebuddy",
+	"cbc":          "codebuddy-cn",
+	"codebuddy-cn": "codebuddy-cn",
+	"cx":           "codex",
+	"codex":        "codex",
+	"ag":           "antigravity",
+	"antigravity":  "antigravity",
+	"sn":           "suno",
+	"suno":         "suno",
+	"ld":           "leonardo",
+	"leonardo":     "leonardo",
 }
 
 // prefixByProvider is the canonical short prefix shown in model ids.
 var prefixByProvider = map[string]string{
-	"kiro":        "kr",
-	"codebuddy":   "cb",
-	"codex":       "cx",
-	"antigravity": "ag",
-	"suno":        "sn",
-	"leonardo":    "ld",
+	"kiro":         "kr",
+	"codebuddy":    "cb",
+	"codebuddy-cn": "cbc",
+	"codex":        "cx",
+	"antigravity":  "ag",
+	"suno":         "sn",
+	"leonardo":     "ld",
 }
 
 // ProviderPrefix returns the short display prefix for a provider ("kr", "cb"),

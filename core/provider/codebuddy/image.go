@@ -13,8 +13,6 @@ import (
 	"github.com/enowdev/enowx/core/transport"
 )
 
-const imageEndpoint = "https://www.codebuddy.ai/v2/images/generations"
-
 // GenerateImage runs a text-to-image request against codebuddy's image endpoint.
 func (p *Provider) GenerateImage(doer transport.Doer, acc provider.Account, req provider.ImageRequest) (*provider.ImageResult, error) {
 	model := req.Model
@@ -46,11 +44,11 @@ func (p *Provider) GenerateImage(doer transport.Doer, acc provider.Account, req 
 		"quality":         quality,
 		"n":               n,
 	})
-	r, err := http.NewRequest(http.MethodPost, imageEndpoint, bytes.NewReader(body))
+	r, err := http.NewRequest(http.MethodPost, p.v.base+"/v2/images/generations", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
-	p.ids.apply(r.Header, "Bearer "+strings.TrimSpace(acc.Cred("api_key")))
+	p.ids.apply(r.Header, p.v.domain, "Bearer "+strings.TrimSpace(acc.Cred("api_key")))
 	r.Header.Set("Content-Type", "application/json")
 
 	resp, err := doer.Do(r)

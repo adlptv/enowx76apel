@@ -55,7 +55,7 @@ const clip = (s: string, max: number) => (s.length > max ? s.slice(0, max) + `\n
 
 // Providers whose upstream rejects requests that carry a tools array (codebuddy
 // returns 11101). Tools are omitted for these models.
-const NO_TOOLS_PREFIXES = ["cb/"];
+const NO_TOOLS_PREFIXES = ["cb/", "cbc/"];
 const supportsTools = (model: string) => !NO_TOOLS_PREFIXES.some((p) => model.startsWith(p));
 
 // providerOf resolves a model's provider — from the model row when known, else

@@ -15,7 +15,7 @@ const (
 // identifiers builds the per-request CLI envelope the upstream expects.
 type identifiers struct{}
 
-func (identifiers) apply(h http.Header, auth string) {
+func (identifiers) apply(h http.Header, domain, auth string) {
 	conv := uuid.NewString()
 	reqID := strings.ReplaceAll(uuid.NewString(), "-", "")
 
@@ -30,7 +30,7 @@ func (identifiers) apply(h http.Header, auth string) {
 	h.Set("X-Ide-Type", "CLI")
 	h.Set("X-Ide-Name", "CLI")
 	h.Set("X-Ide-Version", clientVersion)
-	h.Set("X-Domain", "www.codebuddy.ai")
+	h.Set("X-Domain", domain)
 	h.Set("X-Product", "SaaS")
 	h.Set("User-Agent", userAgent)
 	h.Set("Authorization", auth)
