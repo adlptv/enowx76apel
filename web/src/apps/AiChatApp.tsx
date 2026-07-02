@@ -48,6 +48,11 @@ const load = <T,>(key: string, fallback: T): T => {
 // the request body (which crashed the tab on big reads).
 const clip = (s: string, max: number) => (s.length > max ? s.slice(0, max) + `\n…(+${s.length - max} more chars)` : s);
 
+// Providers whose upstream rejects requests that carry a tools array (codebuddy
+// returns 11101). Tools are omitted for these models.
+const NO_TOOLS_PREFIXES = ["cb/"];
+const supportsTools = (model: string) => !NO_TOOLS_PREFIXES.some((p) => model.startsWith(p));
+
 export function AiChatApp() {
   const [models, setModels] = useState<ProviderModel[]>([]);
   const [model, setModel] = useState(() => load<string>(LS.model, ""));
@@ -153,10 +158,11 @@ export function AiChatApp() {
     const messages = wire(history);
     if (sysPrompt.trim()) messages.unshift({ role: "system", content: sysPrompt.trim() });
     const body: Record<string, unknown> = { model, stream: true, messages };
-    // generate_music is always available; the coding-agent tools only when agent
-    // mode is on (they need a working directory).
+    // Only send tools to providers whose upstream supports tool calling. codebuddy
+    // errors (11101) on any request that carries a tools array, so we must omit
+    // them entirely for those models.
     const tools = agentMode ? [...ALWAYS_ON_TOOLS, ...AGENT_TOOLS] : ALWAYS_ON_TOOLS;
-    if (tools.length > 0) body.tools = tools;
+    if (tools.length > 0 && supportsTools(model)) body.tools = tools;
 
     const res = await fetch("/v1/chat/completions", {
       method: "POST",
