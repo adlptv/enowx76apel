@@ -21,13 +21,15 @@ import { usePersisted } from "./usePersisted";
 import { useAppLocations } from "./useSides";
 import { useShortcuts } from "./useShortcuts";
 import { useTerminals, type TermLocation } from "./useTerminals";
+import { usePluginApps } from "./usePluginApps";
 import type { AppId, Location, Side } from "./types";
 
 type CenterView = "widget" | "terminal" | "chat" | "apitest" | "apps" | "docs";
 
 export function Desktop() {
   const profile = useProfile();
-  const apps = buildApps(profile.has("chat.moderate"));
+  const pluginApps = usePluginApps();
+  const apps = [...buildApps(profile.has("chat.moderate")), ...pluginApps];
   const { active, toggle, close } = usePanels();
   const [view, setView] = usePersisted<CenterView>("center-view", "widget");
 

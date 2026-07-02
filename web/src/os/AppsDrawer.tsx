@@ -59,8 +59,15 @@ export function AppsDrawer({
               onClick={() => onOpen(app.id)}
               className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.07]"
             >
-              <span className={"flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md [&>svg]:!h-5 [&>svg]:!w-5 " + app.accent}>
-                {app.icon}
+              <span className="relative">
+                <span className={"flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md [&>svg]:!h-5 [&>svg]:!w-5 " + app.accent}>
+                  {app.icon}
+                </span>
+                {app.badge && (
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-violet-500 px-1.5 py-[1px] text-[8px] font-bold uppercase leading-none tracking-wide text-white shadow ring-1 ring-[var(--window-bg)]">
+                    {app.badge}
+                  </span>
+                )}
               </span>
               <span className="text-[11px] text-white/70">{app.label}</span>
             </button>

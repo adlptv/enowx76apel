@@ -5,10 +5,10 @@ const KEY = "enx.app-locations";
 
 // useAppLocations tracks where each app lives (left dock, right dock, or the
 // Apps drawer), persisted to localStorage. Apps default to their `home`.
-export function useAppLocations(defaults: Record<AppId, Location>) {
-  const [locations, setLocations] = useState<Record<AppId, Location>>(() => {
+export function useAppLocations(defaults: Record<string, Location>) {
+  const [locations, setLocations] = useState<Record<string, Location>>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || "{}") as Partial<Record<AppId, Location>>;
+      const saved = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, Location>;
       return { ...defaults, ...saved };
     } catch {
       return defaults;

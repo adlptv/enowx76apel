@@ -70,8 +70,15 @@ export function SideDock({
             <span className={`pointer-events-none absolute ${tip} whitespace-nowrap rounded-md bg-black/80 px-2 py-0.5 text-[11px] font-medium text-white opacity-0 ring-1 ring-white/10 transition-opacity group-hover:opacity-100`}>
               {app.label}
             </span>
-            <span className={"flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md [&>svg]:!h-5 [&>svg]:!w-5 " + app.accent}>
-              {app.icon}
+            <span className="relative">
+              <span className={"flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md [&>svg]:!h-5 [&>svg]:!w-5 " + app.accent}>
+                {app.icon}
+              </span>
+              {app.badge && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-violet-500 px-1 py-[1px] text-[7px] font-bold uppercase leading-none text-white shadow">
+                  {app.badge}
+                </span>
+              )}
             </span>
             <span
               className={
