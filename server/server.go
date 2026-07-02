@@ -83,6 +83,7 @@ func New(addr string, d Deps) *Server {
 	files := handlers.NewFiles(dash)
 	agent := handlers.NewAgent(dash, d.Doer)
 	pluginsH := handlers.NewPlugins(dash, d.Plugins)
+	market := handlers.NewMarket(dash, d.Sync, d.Plugins)
 	music := handlers.NewMusic(d.Music)
 	sunoMusic := handlers.NewSuno(d.Accounts, d.Proxy, suno.New(d.Doer))
 	tun := handlers.NewTunnel(d.Tunnel, d.Keys)
@@ -274,6 +275,15 @@ func New(addr string, d Deps) *Server {
 		r.Get("/{id}/logs", pluginsH.Logs)
 		r.Delete("/{id}", pluginsH.Delete)
 	})
+	// Plugin marketplace (publish/browse/install) + admin scan settings.
+	r.Route("/api/market", func(r chi.Router) {
+		r.Post("/publish", market.Publish)
+		r.Get("/plugins", market.List)
+		r.Post("/install/{id}", market.Install)
+	})
+	r.Get("/api/admin/plugin-scan", market.GetScanSettings)
+	r.Put("/api/admin/plugin-scan", market.SaveScanSettings)
+
 	// Plugin UIs, reverse-proxied to their sidecar (gated in the handler).
 	r.Handle("/plugins/*", pluginsH.PluginProxy())
 

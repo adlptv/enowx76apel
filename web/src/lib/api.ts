@@ -184,6 +184,28 @@ export const pluginsApi = {
   },
 };
 
+export interface MarketPlugin {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  runtime: string;
+  icon_url: string;
+  version: string;
+  install_count: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+}
+
+export const marketApi = {
+  publish: (id: string) => api.post<{ status: string; reason?: string; id?: number; file?: string }>("/api/market/publish", { id }),
+  list: (q = "") => api.get<{ plugins: MarketPlugin[] }>(`/api/market/plugins${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  install: (id: number) => api.post<{ installed: boolean; id: string }>(`/api/market/install/${id}`),
+};
+
+export interface PluginScanSettings { ai_review_endpoint: string; ai_review_model: string; ai_review_enabled: boolean; has_key: boolean }
+
 export const leonardoApi = {
   fromCookie: (cookie: string, label?: string) =>
     api.post<{ id: number; email: string }>("/api/accounts/leonardo/cookie", { cookie, label }),
@@ -589,6 +611,9 @@ export const adminApi = {
   mute: (id: string, minutes: number) => api.post<{ muted_minutes: number }>(`/api/admin/users/${id}/mute`, { minutes }),
   warn: (id: string, message: string) => api.post<{ warned: boolean }>(`/api/admin/users/${id}/warn`, { message }),
   adjustKleos: (id: string, amount: number) => api.post<{ kleos: number }>(`/api/admin/users/${id}/kleos`, { amount }),
+  pluginScan: () => api.get<PluginScanSettings>("/api/admin/plugin-scan"),
+  savePluginScan: (s: { ai_review_endpoint: string; ai_review_model: string; ai_review_enabled: boolean; ai_review_api_key?: string }) =>
+    api.put<{ ok: boolean }>("/api/admin/plugin-scan", s),
 };
 
 export interface PostCategory {

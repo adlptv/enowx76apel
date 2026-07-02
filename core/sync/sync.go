@@ -12,11 +12,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
-	stdsync "sync"
 	"strings"
+	stdsync "sync"
 	"time"
 
 	"github.com/enowdev/enowx/store"
@@ -364,6 +365,91 @@ func (m *Manager) PostsList(ctx context.Context, query string) (string, error) {
 		return "", err
 	}
 	return string(raw), nil
+}
+
+// --- plugin marketplace ---
+
+// PublishPlugin uploads a plugin bundle (zip) + metadata; the cloud scans it and
+// returns {status:"approved"|"rejected", reason, id}.
+func (m *Manager) PublishPlugin(ctx context.Context, fields map[string]string, zipBytes []byte) (string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		_ = mw.WriteField(k, v)
+	}
+	fw, _ := mw.CreateFormFile("file", "bundle.zip")
+	_, _ = fw.Write(zipBytes)
+	_ = mw.Close()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.ServerURL(ctx)+"/plugins", &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+m.get(ctx, keyToken))
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("publish failed (%d): %s", resp.StatusCode, string(raw))
+	}
+	return string(raw), nil
+}
+
+// MarketPlugins lists published plugins.
+func (m *Manager) MarketPlugins(ctx context.Context, query string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/plugins"+query, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// InstallPlugin records an install and returns {bundle_url, slug, name, runtime}.
+func (m *Manager) InstallPlugin(ctx context.Context, id string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/plugins/"+id+"/install", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// AdminSettings gets the admin settings (endpoint + has_key, never the key).
+func (m *Manager) AdminSettings(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/admin/settings", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// SaveAdminSettings updates the admin settings.
+func (m *Manager) SaveAdminSettings(ctx context.Context, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPut, "/admin/settings", body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// DownloadBundle fetches a plugin bundle zip from a URL.
+func (m *Manager) DownloadBundle(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("download failed (%d)", resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 40<<20))
 }
 
 // PostCreate creates a post.

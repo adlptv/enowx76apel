@@ -6,7 +6,7 @@ import { useAdminEvents } from "../os/adminBus";
 import { useDialog } from "../os/dialog";
 import { adminApi, modApi, searchApi, type FlaggedLink, type ModAction, type AdminStats, type ProviderModel } from "../lib/api";
 
-type Tab = "stats" | "flags" | "users" | "models" | "log";
+type Tab = "stats" | "flags" | "users" | "models" | "scan" | "log";
 
 // AdminApp is the moderator-only Admin Tools app. It only appears in the dock
 // for moderators (see apps registry), and every endpoint it calls is role-gated
@@ -18,6 +18,7 @@ export function AdminApp() {
     { id: "flags", label: "Duplicates", icon: Copy },
     { id: "users", label: "Users", icon: Users },
     { id: "models", label: "Models", icon: Boxes },
+    { id: "scan", label: "Plugin scan", icon: ShieldCheck },
     { id: "log", label: "Mod log", icon: ScrollText },
   ];
   return (
@@ -43,6 +44,7 @@ export function AdminApp() {
       {tab === "flags" && <FlagsTab />}
       {tab === "users" && <UsersTab />}
       {tab === "models" && <ModelsTab />}
+      {tab === "scan" && <PluginScanTab />}
       {tab === "log" && <LogTab />}
     </AppShell>
   );
@@ -386,6 +388,73 @@ function LogTab() {
           <span className="ml-auto text-white/30">{new Date(a.created_at).toLocaleString()}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// PluginScanTab configures the external AI security review for plugin publishing.
+function PluginScanTab() {
+  const [s, setS] = useState<{ ai_review_endpoint: string; ai_review_model: string; ai_review_enabled: boolean; has_key: boolean } | null>(null);
+  const [endpoint, setEndpoint] = useState("");
+  const [model, setModel] = useState("");
+  const [key, setKey] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(() => {
+    adminApi.pluginScan().then((r) => {
+      setS(r);
+      setEndpoint(r.ai_review_endpoint || "");
+      setModel(r.ai_review_model || "");
+      setEnabled(r.ai_review_enabled);
+    }).catch(() => setS(null));
+  }, []);
+  useEffect(() => load(), [load]);
+
+  const save = async () => {
+    setSaving(true);
+    setMsg("");
+    try {
+      await adminApi.savePluginScan({
+        ai_review_endpoint: endpoint.trim(),
+        ai_review_model: model.trim(),
+        ai_review_enabled: enabled,
+        ...(key.trim() ? { ai_review_api_key: key.trim() } : {}),
+      });
+      setKey("");
+      setMsg("Saved.");
+      load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!s) return <div className="h-32 animate-pulse rounded-lg bg-white/5" />;
+  return (
+    <div className="max-w-xl space-y-3">
+      <p className="text-xs text-white/50">
+        Plugins uploaded to the marketplace are always scanned by static heuristics (obfuscation/encryption/binaries are rejected). Optionally add an AI reviewer (OpenAI-compatible chat endpoint) for deeper analysis (RAT/backdoor/exfiltration).
+      </p>
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-white/70">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="accent-indigo-500" /> Enable AI review
+      </label>
+      <div>
+        <label className="mb-1 block text-[11px] text-white/50">Endpoint (chat completions base URL)</label>
+        <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25" />
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] text-white/50">Model</label>
+        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25" />
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] text-white/50">API key {s.has_key && <span className="text-emerald-300">(set — leave blank to keep)</span>}</label>
+        <input value={key} onChange={(e) => setKey(e.target.value)} type="password" placeholder={s.has_key ? "••••••••" : "sk-…"} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25" />
+      </div>
+      {msg && <div className="text-xs text-white/60">{msg}</div>}
+      <button onClick={save} disabled={saving} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Save settings"}</button>
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Square, Trash2, Plus, X, ScrollText, ExternalLink, Puzzle, AlertTriangle, RefreshCw, FolderOpen } from "lucide-react";
+import { Play, Square, Trash2, Plus, X, ScrollText, ExternalLink, Puzzle, AlertTriangle, RefreshCw, FolderOpen, UploadCloud, Store, Download, Loader2 } from "lucide-react";
 import { AppShell, Empty } from "./shell";
 import { Tooltip } from "../components/Tooltip";
 import { useDialog } from "../os/dialog";
-import { pluginsApi, type PluginManifest, type PluginRuntime } from "../lib/api";
+import { pluginsApi, marketApi, type PluginManifest, type PluginRuntime, type MarketPlugin } from "../lib/api";
 
 const RUNTIMES = [
   { id: "python", label: "Python" },
@@ -56,8 +56,36 @@ export function PluginsApp() {
     if (ok) act(() => pluginsApi.remove(p.id), p.id);
   };
 
+  const publish = async (p: PluginManifest) => {
+    const ok = await dialog.confirm({ title: "Publish to marketplace?", message: `${p.name} will be uploaded and security-scanned. If it passes, it's listed publicly for others to install.`, confirmLabel: "Publish" });
+    if (!ok) return;
+    setBusy(p.id);
+    setError("");
+    try {
+      const r = await marketApi.publish(p.id);
+      if (r.status === "approved") {
+        await dialog.alert({ title: "Published 🎉", message: `${p.name} passed the scan and is now in the marketplace.` });
+      } else {
+        await dialog.alert({ title: "Rejected", message: r.reason ? `${r.reason}${r.file ? ` (${r.file})` : ""}` : "The security scan rejected this plugin." });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "publish failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const [tab, setTab] = useState<"mine" | "market">("mine");
+
   return (
     <AppShell title="Plugins" subtitle="Build and run your own apps & automations">
+      <div className="mb-3 flex gap-1">
+        <button onClick={() => setTab("mine")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${tab === "mine" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Puzzle className="h-3.5 w-3.5" /> My Plugins</button>
+        <button onClick={() => setTab("market")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${tab === "market" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Store className="h-3.5 w-3.5" /> Marketplace</button>
+      </div>
+
+      {tab === "market" ? <Marketplace onInstalled={load} /> : (
+      <>
       <div className="mb-3 flex items-center gap-2">
         <button onClick={() => setCreating(true)} className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90">
           <Plus className="h-3.5 w-3.5" /> New plugin
@@ -107,12 +135,15 @@ export function PluginsApp() {
                   <Tooltip label="Start"><button onClick={() => act(() => pluginsApi.start(p.id), p.id)} disabled={busy === p.id || !runtimeOk(p.runtime)} className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-40"><Play className="h-3.5 w-3.5" /></button></Tooltip>
                 ))}
                 <Tooltip label="Open folder (edit in your IDE)"><button onClick={() => pluginsApi.reveal(p.id).catch(() => {})} className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 hover:bg-white/10 hover:text-white"><FolderOpen className="h-3.5 w-3.5" /></button></Tooltip>
+                <Tooltip label="Publish to marketplace"><button onClick={() => publish(p)} disabled={busy === p.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-40"><UploadCloud className="h-3.5 w-3.5" /></button></Tooltip>
                 <Tooltip label="Logs"><button onClick={() => setLogsFor(p.id)} className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 hover:bg-white/10 hover:text-white"><ScrollText className="h-3.5 w-3.5" /></button></Tooltip>
                 <Tooltip label="Delete"><button onClick={() => remove(p)} disabled={busy === p.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-white/55 hover:bg-red-500/30 hover:text-red-200 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button></Tooltip>
               </div>
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {creating && <CreateModal runtimes={runtimes} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load(); }} />}
@@ -244,6 +275,84 @@ function PluginWindow({ plugin, onClose }: { plugin: PluginManifest; onClose: ()
         className="min-h-0 flex-1 bg-white"
         sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
       />
+    </div>
+  );
+}
+
+// Marketplace browses published plugins and installs them locally.
+function Marketplace({ onInstalled }: { onInstalled: () => void }) {
+  const [items, setItems] = useState<MarketPlugin[]>([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+
+  const load = async (query = "") => {
+    setLoading(true);
+    try {
+      const r = await marketApi.list(query);
+      setItems(r.plugins ?? []);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to load (are you signed in?)");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const install = async (p: MarketPlugin) => {
+    setBusy(p.id);
+    setError("");
+    try {
+      const r = await marketApi.install(p.id);
+      setNote(`Installed ${p.name}. Find it in My Plugins.`);
+      onInstalled();
+      void r;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "install failed";
+      if (msg.includes("already exists")) setNote(`${p.name} is already installed.`);
+      else setError(msg);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load(q)} placeholder="Search plugins…" className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white outline-none focus:border-white/25" />
+        <button onClick={() => load(q)} className="rounded-lg border border-white/10 p-1.5 text-white/50 hover:bg-white/5 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      {error && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</div>}
+      {note && <div className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{note}</div>}
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>
+      ) : items.length === 0 ? (
+        <Empty message="No published plugins yet. Publish one from My Plugins." />
+      ) : (
+        <div className="space-y-2">
+          {items.map((p) => (
+            <div key={p.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/5 text-white/60">
+                {p.icon_url ? <img src={p.icon_url} alt="" className="h-full w-full object-cover" /> : <Puzzle className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-medium text-white">{p.name}</span>
+                  <span className="rounded bg-white/10 px-1 text-[9px] uppercase text-white/50">{p.runtime}</span>
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-white/45">{p.description || "No description"}</div>
+                <div className="mt-0.5 text-[10px] text-white/30">by {p.display_name || p.username} · {p.install_count} installs</div>
+              </div>
+              <button onClick={() => install(p)} disabled={busy === p.id} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-40">
+                {busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Install
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
