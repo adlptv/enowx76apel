@@ -72,16 +72,18 @@ func NewWarmup(p *proxy.Proxy, reg *provider.Registry, s store.AccountStore, log
 
 // warmupModel is a valid, cheap model accepted by each provider's upstream.
 var warmupModel = map[string]string{
-	"codebuddy": "gemini-2.5-flash",
-	"kiro":      "claude-sonnet-4",
-	"codex":       "gpt-5.4-mini",
-	"antigravity": "gemini-3.5-flash-low",
+	"codebuddy":    "gemini-2.5-flash",
+	"codebuddy-cn": "gemini-2.5-flash",
+	"kiro":         "claude-sonnet-4",
+	"codex":        "gpt-5.4-mini",
+	"antigravity":  "gemini-3.5-flash-low",
 }
 
 // warmupSystem is set for providers that reject requests without a system turn
 // (codebuddy returns "parse failed" otherwise).
 var warmupSystem = map[string]string{
-	"codebuddy": "You are a helpful assistant.",
+	"codebuddy":    "You are a helpful assistant.",
+	"codebuddy-cn": "You are a helpful assistant.",
 }
 
 func (h *Warmup) Run(w http.ResponseWriter, r *http.Request) {
@@ -242,7 +244,20 @@ func (h *Warmup) WarmAccount(ctx context.Context, acc *store.Account) (string, m
 		return "active", out
 	}
 
-	req := warmupRequest(acc.Provider)
+	// Resolve the warmup model: a curated cheap one when known, else the
+	// provider's own first model (custom/compat providers), so we never probe an
+	// unrelated default (e.g. gpt-4o-mini) against the wrong upstream.
+	wm := warmupModel[acc.Provider]
+	if wm == "" {
+		if prov, err := h.reg.Get(acc.Provider); err == nil {
+			if mf, ok := prov.(provider.ModelFetcher); ok {
+				if models, merr := mf.Models(pacc); merr == nil && len(models) > 0 {
+					wm = models[0].ID
+				}
+			}
+		}
+	}
+	req := probeRequest(acc.Provider, wm)
 
 	// Label the account by email when the provider can resolve one and the label
 	// is empty or generic (e.g. token-added kiro accounts).
@@ -396,11 +411,6 @@ func (h *Warmup) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // warmupRequest builds a minimal "reply with hi" probe usable by both
-// passthrough providers (via Raw) and structured ones (via Messages). A system
-// turn is included for providers that require it (e.g. codebuddy).
-func warmupRequest(providerName string) *model.Request {
-	return probeRequest(providerName, warmupModel[providerName])
-}
 
 // probeRequest builds a "reply with hi" probe for a specific model id.
 func probeRequest(providerName, modelID string) *model.Request {
