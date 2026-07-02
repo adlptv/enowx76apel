@@ -475,6 +475,19 @@ export const settingsApi = {
   get: () => api.get<Settings>("/api/settings"),
 };
 
+export interface SubscriptionStatus {
+  active: boolean;
+  plan: string;
+  price: number;
+  period_days: number;
+  pay_enabled: boolean;
+  premium_until?: string;
+}
+export const subscriptionApi = {
+  status: () => api.get<SubscriptionStatus>("/api/subscription"),
+  subscribe: () => api.post<{ order_ref: string; pay_url: string; amount: number }>("/api/subscription/subscribe", {}),
+};
+
 export interface VersionInfo {
   current: string;
   latest?: string;

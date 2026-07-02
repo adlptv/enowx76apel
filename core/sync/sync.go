@@ -666,6 +666,26 @@ func (m *Manager) SellerReviews(ctx context.Context, sellerID, query string) (st
 	return string(raw), nil
 }
 
+// --- subscriptions ---
+
+// Subscription fetches the caller's Premium status + the plan on offer.
+func (m *Manager) Subscription(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/subscription", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// SubscribePremium starts a Premium payment and returns the gateway response (pay url).
+func (m *Manager) SubscribePremium(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/subscription/subscribe", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // --- community filter templates ---
 
 // CommunityFilterTemplates browses the public template list.

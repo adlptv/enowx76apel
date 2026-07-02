@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, LogOut, LogIn, ShieldCheck, Sparkles, Crown, Check } from "lucide-react";
+import { subscriptionApi, type SubscriptionStatus } from "../lib/api";
 import { AppShell } from "./shell";
 import { Tooltip } from "../components/Tooltip";
 import { useProfile } from "../os/useProfile";
@@ -79,25 +80,8 @@ export function ProfileApp() {
             <span className="text-[11px] text-white/35">via Discord</span>
           </div>
 
-          {/* Account notes */}
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-              <Sparkles className="h-3 w-3" /> Account
-            </div>
-            <p className="text-xs leading-relaxed text-white/55">
-              Your playlists sync automatically across signed-in devices.
-            </p>
-            {!profile.user.wears_tag && (
-              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
-                Wear the <span className="font-semibold text-white/60">[enow]</span> server tag on Discord to unlock
-                extra profile features.
-              </p>
-            )}
-            <div className="mt-3 flex items-center gap-1.5 text-[11px] text-white/40">
-              <SettingsIcon className="h-3 w-3" />
-              Manage sync in Settings → Cloud Sync.
-            </div>
-          </div>
+          {/* Subscription / upgrade */}
+          <SubscriptionCard />
 
           <Tooltip label="Sign out of this device" place="bottom">
             <button
@@ -133,5 +117,64 @@ export function ProfileApp() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+// SubscriptionCard shows Premium status + upgrade/renew, replacing the old
+// cloud-sync note. Free users see an upgrade CTA; premium users see their expiry.
+function SubscriptionCard() {
+  const [sub, setSub] = useState<SubscriptionStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = () => subscriptionApi.status().then(setSub).catch(() => setSub(null));
+  useEffect(() => { load(); }, []);
+
+  const subscribe = async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await subscriptionApi.subscribe();
+      window.open(r.pay_url, "_blank", "noopener");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "could not start payment");
+    } finally { setBusy(false); }
+  };
+
+  const idr = (n: number) => "Rp" + n.toLocaleString("id-ID");
+  const fmtDate = (iso?: string) => iso ? new Date(iso).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "";
+
+  if (!sub) {
+    return (
+      <div className="flex justify-center rounded-xl border border-white/10 bg-white/[0.02] p-4"><Loader2 className="h-4 w-4 animate-spin text-white/30" /></div>
+    );
+  }
+
+  if (sub.active) {
+    return (
+      <div className="rounded-xl border border-amber-400/25 bg-gradient-to-b from-amber-500/10 to-transparent p-3.5">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300"><Crown className="h-3.5 w-3.5" /> Premium</div>
+        <p className="text-xs text-white/60">You have full access to cloud features.</p>
+        {sub.premium_until && <p className="mt-1 text-[11px] text-white/40">Expires {fmtDate(sub.premium_until)}</p>}
+        <button onClick={subscribe} disabled={busy || !sub.pay_enabled} className="mt-3 flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20 disabled:opacity-50">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Crown className="h-3.5 w-3.5" />} Renew (+30 days)
+        </button>
+        {err && <p className="mt-1.5 text-[11px] text-red-300">{err}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-gradient-to-b from-indigo-500/10 to-transparent p-3.5">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-300"><Sparkles className="h-3.5 w-3.5" /> Upgrade to Premium</div>
+      <ul className="mb-3 space-y-1 text-xs text-white/60">
+        <li className="flex items-center gap-1.5"><Check className="h-3 w-3 shrink-0 text-emerald-400" /> Full cloud sync (providers, accounts, keys, settings)</li>
+        <li className="flex items-center gap-1.5"><Check className="h-3 w-3 shrink-0 text-emerald-400" /> More paid cloud features as they land</li>
+      </ul>
+      <button onClick={subscribe} disabled={busy || !sub.pay_enabled} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Crown className="h-3.5 w-3.5" />} Subscribe · {idr(sub.price)}/mo
+      </button>
+      {!sub.pay_enabled && <p className="mt-1.5 text-[11px] text-white/35">Payment is not configured yet.</p>}
+      {err && <p className="mt-1.5 text-[11px] text-red-300">{err}</p>}
+    </div>
   );
 }
