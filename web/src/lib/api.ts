@@ -777,6 +777,50 @@ export const marketplaceApi = {
   remove: (id: number) => api.del<{ ok: boolean }>(`/api/marketplace/listings/${id}`),
 };
 
+// Rekber (escrow) deal thread.
+export interface RekberParty { username: string; display_name: string; avatar_url: string }
+export interface RekberThread {
+  id: number;
+  listing_id?: number;
+  buyer_id: string;
+  seller_id: string;
+  middleman_id?: string;
+  title: string;
+  amount: number;
+  fee: number;
+  currency: string;
+  note: string;
+  status: string; // open|buyer_paid|delivered|released|cancelled|disputed
+  created_at: string;
+  updated_at: string;
+  buyer: RekberParty;
+  seller: RekberParty;
+  middleman?: RekberParty;
+}
+export interface RekberMessage {
+  id: number;
+  thread_id: number;
+  user_id: string;
+  content: string;
+  images: string[];
+  kind: "chat" | "system";
+  created_at: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+}
+
+export const rekberApi = {
+  fee: (amount: number) => api.get<{ amount: number; fee: number }>(`/api/marketplace/rekber/fee?amount=${amount}`),
+  threads: () => api.get<{ threads: RekberThread[] }>("/api/marketplace/rekber/threads"),
+  create: (listing_id: number, note = "") => api.post<RekberThread>("/api/marketplace/rekber/threads", { listing_id, note }),
+  get: (id: number, after = 0) => api.get<{ thread: RekberThread; messages: RekberMessage[]; role: string }>(`/api/marketplace/rekber/threads/${id}?after=${after}`),
+  send: (id: number, content: string, images: string[] = []) => api.post<RekberMessage>(`/api/marketplace/rekber/threads/${id}/messages`, { content, images }),
+  advance: (id: number) => api.post<RekberThread>(`/api/marketplace/rekber/threads/${id}/advance`),
+  cancel: (id: number) => api.post<RekberThread>(`/api/marketplace/rekber/threads/${id}/cancel`),
+  dispute: (id: number) => api.post<RekberThread>(`/api/marketplace/rekber/threads/${id}/dispute`),
+};
+
 // ChatMessage carries the message + a snapshot of the author's identity.
 export interface ChatMessage {
   id: number;

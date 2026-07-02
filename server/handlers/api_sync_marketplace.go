@@ -42,3 +42,45 @@ func (h *Sync) MarketplaceDelete(w http.ResponseWriter, r *http.Request) {
 	out, err := h.mgr.MarketplaceAction(r.Context(), http.MethodDelete, chi.URLParam(r, "id"), nil)
 	proxyJSON(w, out, err)
 }
+
+// --- rekber ---
+
+func (h *Sync) RekberFee(w http.ResponseWriter, r *http.Request) {
+	q := ""
+	if raw := r.URL.RawQuery; raw != "" {
+		q = "?" + raw
+	}
+	out, err := h.mgr.RekberGet(r.Context(), "/fee"+q)
+	proxyJSON(w, out, err)
+}
+
+func (h *Sync) RekberThreads(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.RekberGet(r.Context(), "/threads")
+	proxyJSON(w, out, err)
+}
+
+func (h *Sync) RekberCreate(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 4096))
+	out, err := h.mgr.RekberPost(r.Context(), "/threads", body)
+	proxyJSON(w, out, err)
+}
+
+func (h *Sync) RekberGetThread(w http.ResponseWriter, r *http.Request) {
+	q := ""
+	if raw := r.URL.RawQuery; raw != "" {
+		q = "?" + raw
+	}
+	out, err := h.mgr.RekberGet(r.Context(), "/threads/"+chi.URLParam(r, "id")+q)
+	proxyJSON(w, out, err)
+}
+
+func (h *Sync) RekberSend(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	out, err := h.mgr.RekberPost(r.Context(), "/threads/"+chi.URLParam(r, "id")+"/messages", body)
+	proxyJSON(w, out, err)
+}
+
+func (h *Sync) RekberAction(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.RekberPost(r.Context(), "/threads/"+chi.URLParam(r, "id")+"/"+chi.URLParam(r, "action"), nil)
+	proxyJSON(w, out, err)
+}

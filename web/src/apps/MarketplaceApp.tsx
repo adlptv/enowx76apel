@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { Store, ShieldCheck, Plus, X, Search, RefreshCw, Loader2, Trash2, ImagePlus, ArrowLeft, Tag } from "lucide-react";
-import { marketplaceApi, type Listing, type ListingCategory } from "../lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Store, ShieldCheck, Plus, X, Search, RefreshCw, Loader2, Trash2, ImagePlus, ArrowLeft, Tag, Handshake, Send, Check, CircleDollarSign } from "lucide-react";
+import { marketplaceApi, rekberApi, type Listing, type ListingCategory, type RekberThread, type RekberMessage } from "../lib/api";
 import { useProfile } from "../os/useProfile";
 import { useImageAttach } from "../os/useImageAttach";
 import { useDialog } from "../os/dialog";
@@ -8,6 +8,7 @@ import { openLightbox } from "../os/lightbox";
 import { openProfile } from "../os/profileViewer";
 
 type Kind = "community" | "official";
+type View = "browse" | "deals";
 
 function idr(amount: number, currency: string) {
   if (currency === "IDR") return "Rp " + amount.toLocaleString("id-ID");
@@ -15,20 +16,27 @@ function idr(amount: number, currency: string) {
 }
 
 export function MarketplaceApp() {
+  const [view, setView] = useState<View>("browse");
   const [kind, setKind] = useState<Kind>("community");
   const [detail, setDetail] = useState<Listing | null>(null);
   const [creating, setCreating] = useState(false);
+  const [openThread, setOpenThread] = useState<number | null>(null);
+
+  const openDeal = (id: number) => { setOpenThread(id); setView("deals"); };
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
-        <button onClick={() => setKind("official")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${kind === "official" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><ShieldCheck className="h-3.5 w-3.5" /> Official Store</button>
-        <button onClick={() => setKind("community")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${kind === "community" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Store className="h-3.5 w-3.5" /> Community</button>
+        <button onClick={() => { setView("browse"); setKind("official"); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "browse" && kind === "official" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><ShieldCheck className="h-3.5 w-3.5" /> Official Store</button>
+        <button onClick={() => { setView("browse"); setKind("community"); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "browse" && kind === "community" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Store className="h-3.5 w-3.5" /> Community</button>
+        <button onClick={() => { setView("deals"); setOpenThread(null); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "deals" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Handshake className="h-3.5 w-3.5" /> My Deals</button>
         <button onClick={() => setCreating(true)} className="ml-auto flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"><Plus className="h-3.5 w-3.5" /> Sell</button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        {detail ? (
-          <ListingDetail listing={detail} onBack={() => setDetail(null)} onDeleted={() => setDetail(null)} />
+        {view === "deals" ? (
+          <DealsView openThread={openThread} setOpenThread={setOpenThread} />
+        ) : detail ? (
+          <ListingDetail listing={detail} onBack={() => setDetail(null)} onDeleted={() => setDetail(null)} onDeal={openDeal} />
         ) : (
           <Feed kind={kind} onOpen={setDetail} />
         )}
@@ -106,12 +114,27 @@ function ListingCard({ l, onOpen }: { l: Listing; onOpen: () => void }) {
   );
 }
 
-function ListingDetail({ listing, onBack, onDeleted }: { listing: Listing; onBack: () => void; onDeleted: () => void }) {
+function ListingDetail({ listing, onBack, onDeleted, onDeal }: { listing: Listing; onBack: () => void; onDeleted: () => void; onDeal: (threadId: number) => void }) {
   const profile = useProfile();
   const dialog = useDialog();
   const [busy, setBusy] = useState(false);
+  const [dealing, setDealing] = useState(false);
   const mine = !!profile.user?.username && listing.username === profile.user.username;
   const canMod = profile.has("chat.moderate");
+
+  const startDeal = async () => {
+    const ok = await dialog.confirm({ title: "Start a rekber deal?", message: `A private chat with the seller and a middleman will open. The middleman holds your payment until you confirm the item is received.`, confirmLabel: "Start deal" });
+    if (!ok) return;
+    setDealing(true);
+    try {
+      const t = await rekberApi.create(listing.id);
+      onDeal(t.id);
+    } catch (e) {
+      await dialog.alert({ title: "Couldn't start deal", message: e instanceof Error ? e.message : "failed" });
+    } finally {
+      setDealing(false);
+    }
+  };
 
   const remove = async () => {
     const ok = await dialog.confirm({ title: "Delete listing?", message: `"${listing.title}" will be removed.`, confirmLabel: "Delete", danger: true });
@@ -149,8 +172,12 @@ function ListingDetail({ listing, onBack, onDeleted }: { listing: Listing; onBac
         <div className="mt-4 flex gap-2">
           {listing.kind === "official" ? (
             <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white/40">Buy (payment coming soon)</button>
+          ) : mine ? (
+            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white/40">This is your listing</button>
           ) : (
-            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white/40">Deal via rekber (coming soon)</button>
+            <button onClick={startDeal} disabled={dealing} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
+              {dealing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />} Deal via rekber
+            </button>
           )}
         </div>
       </div>
@@ -244,6 +271,169 @@ function SellModal({ initialKind, onClose, onCreated }: { initialKind: Kind; onC
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+const STATUS_STEPS = ["open", "buyer_paid", "delivered", "released"] as const;
+const STATUS_LABEL: Record<string, string> = {
+  open: "Opened", buyer_paid: "Buyer paid", delivered: "Delivered", released: "Released",
+  cancelled: "Cancelled", disputed: "Disputed",
+};
+
+function idrShort(n: number, c: string) { return c === "IDR" ? "Rp " + n.toLocaleString("id-ID") : c + " " + n.toLocaleString(); }
+
+// DealsView lists the user's deals and opens a RekberPanel for one.
+function DealsView({ openThread, setOpenThread }: { openThread: number | null; setOpenThread: (id: number | null) => void }) {
+  const [threads, setThreads] = useState<RekberThread[] | null>(null);
+  const load = useCallback(() => { rekberApi.threads().then((r) => setThreads(r.threads ?? [])).catch(() => setThreads([])); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (openThread !== null) return <RekberPanel threadId={openThread} onBack={() => { setOpenThread(null); load(); }} />;
+
+  return (
+    <div className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-white">My deals</h2>
+        <button onClick={load} className="rounded-lg border border-white/10 p-1.5 text-white/50 hover:bg-white/5 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /></button>
+      </div>
+      {!threads ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>
+      ) : threads.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center text-xs text-white/40">No deals yet. Open one from a community listing.</div>
+      ) : (
+        <div className="space-y-2">
+          {threads.map((t) => (
+            <button key={t.id} onClick={() => setOpenThread(t.id)} className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left hover:bg-white/[0.05]">
+              <Handshake className="h-4 w-4 shrink-0 text-indigo-300" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-white">{t.title}</div>
+                <div className="mt-0.5 text-[11px] text-white/45">{idrShort(t.amount, t.currency)} · {t.buyer.display_name || t.buyer.username} ↔ {t.seller.display_name || t.seller.username}</div>
+              </div>
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${t.status === "released" ? "bg-emerald-500/20 text-emerald-300" : t.status === "cancelled" || t.status === "disputed" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"}`}>{STATUS_LABEL[t.status] ?? t.status}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// RekberPanel is the private deal chat: status stepper + messages + role-gated actions.
+function RekberPanel({ threadId, onBack }: { threadId: number; onBack: () => void }) {
+  const [thread, setThread] = useState<RekberThread | null>(null);
+  const [role, setRole] = useState("");
+  const [messages, setMessages] = useState<RekberMessage[]>([]);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const dialog = useDialog();
+  const lastId = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(async (initial = false) => {
+    try {
+      const r = await rekberApi.get(threadId, initial ? 0 : lastId.current);
+      setThread(r.thread);
+      setRole(r.role);
+      if (initial) setMessages(r.messages);
+      else if (r.messages.length) setMessages((prev) => [...prev, ...r.messages]);
+      if (r.messages.length) lastId.current = r.messages[r.messages.length - 1].id;
+    } catch { /* ignore */ }
+  }, [threadId]);
+
+  useEffect(() => { lastId.current = 0; refresh(true); }, [refresh]);
+  // Poll for new messages/status while open.
+  useEffect(() => {
+    const iv = setInterval(() => refresh(false), 4000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+  useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages]);
+
+  const send = async () => {
+    const c = text.trim();
+    if (!c) return;
+    setText("");
+    try { await rekberApi.send(threadId, c); await refresh(false); } catch { /* ignore */ }
+  };
+
+  const act = async (fn: () => Promise<RekberThread>) => {
+    setBusy(true);
+    try { const t = await fn(); setThread(t); await refresh(false); } catch (e) { await dialog.alert({ title: "Action failed", message: e instanceof Error ? e.message : "failed" }); } finally { setBusy(false); }
+  };
+
+  if (!thread) return <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>;
+
+  const stepIdx = STATUS_STEPS.indexOf(thread.status as typeof STATUS_STEPS[number]);
+  const done = thread.status === "released";
+  const dead = thread.status === "cancelled" || thread.status === "disputed";
+
+  // Role-gated primary action.
+  let action: { label: string; icon: typeof Check; fn: () => Promise<RekberThread> } | null = null;
+  if (!done && !dead) {
+    if (role === "buyer" && thread.status === "open") action = { label: "Sudah bayar", icon: Check, fn: () => rekberApi.advance(threadId) };
+    else if (role === "buyer" && thread.status === "delivered") action = { label: "Konfirmasi terima", icon: Check, fn: () => rekberApi.advance(threadId) };
+    else if (role === "seller" && thread.status === "buyer_paid") action = { label: "Sudah kirim", icon: Send, fn: () => rekberApi.advance(threadId) };
+    else if (role === "middleman" && thread.status === "delivered") action = { label: "Send Payment", icon: CircleDollarSign, fn: () => rekberApi.advance(threadId) };
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-white/5 px-4 py-2.5">
+        <button onClick={onBack} className="mb-2 flex items-center gap-1.5 text-xs text-white/50 hover:text-white"><ArrowLeft className="h-3.5 w-3.5" /> My deals</button>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-white">{thread.title}</div>
+            <div className="text-[11px] text-white/45">{idrShort(thread.amount, thread.currency)} · fee {idrShort(thread.fee, thread.currency)} · you are the <span className="text-white/70">{role || "observer"}</span></div>
+          </div>
+        </div>
+        {/* Status stepper */}
+        <div className="mt-2 flex items-center gap-1">
+          {STATUS_STEPS.map((s, i) => (
+            <div key={s} className="flex flex-1 items-center gap-1">
+              <div className={`h-1.5 flex-1 rounded-full ${dead ? "bg-red-500/40" : i <= stepIdx ? "bg-emerald-400" : "bg-white/10"}`} />
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 flex justify-between text-[9px] text-white/40">
+          {STATUS_STEPS.map((s) => <span key={s}>{STATUS_LABEL[s]}</span>)}
+        </div>
+      </div>
+
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-auto p-4">
+        {messages.map((m) => m.kind === "system" ? (
+          <div key={m.id} className="mx-auto w-fit max-w-[90%] rounded-full bg-white/5 px-3 py-1 text-center text-[11px] text-white/50">{m.content}</div>
+        ) : (
+          <div key={m.id} className="flex gap-2">
+            <img src={m.avatar_url || "/favicon.png"} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+            <div className="min-w-0">
+              <div className="text-[11px] text-white/50">{m.display_name || m.username}</div>
+              <div className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-sm text-white/85">{m.content}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      {(action || (!done && !dead)) && (
+        <div className="flex items-center gap-2 border-t border-white/5 px-4 py-2">
+          {action && (
+            <button onClick={() => act(action!.fn)} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-400 disabled:opacity-50">
+              <action.icon className="h-3.5 w-3.5" /> {action.label}
+            </button>
+          )}
+          {!done && !dead && (
+            <button onClick={() => act(() => rekberApi.cancel(threadId))} disabled={busy} className="ml-auto rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/50 hover:bg-red-500/15 hover:text-red-200">Cancel</button>
+          )}
+        </div>
+      )}
+
+      {/* Composer */}
+      {!dead && (
+        <div className="flex items-center gap-2 border-t border-white/5 px-4 py-2.5">
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Message…" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/25" />
+          <button onClick={send} className="rounded-lg bg-white/10 p-2 text-white/70 hover:bg-white/20"><Send className="h-4 w-4" /></button>
+        </div>
+      )}
     </div>
   );
 }

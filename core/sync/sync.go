@@ -562,6 +562,27 @@ func (m *Manager) MarketplaceAction(ctx context.Context, method, id string, body
 	return string(raw), nil
 }
 
+// --- rekber (escrow deals) ---
+
+// RekberGet proxies a GET under /marketplace/rekber (path is the suffix, e.g.
+// "/threads" or "/threads/5?after=0").
+func (m *Manager) RekberGet(ctx context.Context, path string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/marketplace/rekber"+path, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// RekberPost proxies a POST under /marketplace/rekber.
+func (m *Manager) RekberPost(ctx context.Context, path string, body json.RawMessage) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodPost, "/marketplace/rekber"+path, body, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // PostComments fetches a post's comments.
 func (m *Manager) PostComments(ctx context.Context, postID string) (string, error) {
 	var raw json.RawMessage

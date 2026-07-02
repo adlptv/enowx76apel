@@ -216,6 +216,12 @@ func New(addr string, d Deps) *Server {
 		r.Post("/marketplace/listings", syncH.MarketplaceCreate)
 		r.Patch("/marketplace/listings/{id}", syncH.MarketplaceUpdate)
 		r.Delete("/marketplace/listings/{id}", syncH.MarketplaceDelete)
+		r.Get("/marketplace/rekber/fee", syncH.RekberFee)
+		r.Get("/marketplace/rekber/threads", syncH.RekberThreads)
+		r.Post("/marketplace/rekber/threads", syncH.RekberCreate)
+		r.Get("/marketplace/rekber/threads/{id}", syncH.RekberGetThread)
+		r.Post("/marketplace/rekber/threads/{id}/messages", syncH.RekberSend)
+		r.Post("/marketplace/rekber/threads/{id}/{action}", syncH.RekberAction)
 
 		r.Get("/shop", syncH.Shop)
 		r.Post("/shop/buy", syncH.ShopBuy)
