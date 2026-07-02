@@ -283,6 +283,8 @@ func New(addr string, d Deps) *Server {
 	})
 	r.Get("/api/admin/plugin-scan", market.GetScanSettings)
 	r.Put("/api/admin/plugin-scan", market.SaveScanSettings)
+	r.Get("/api/admin/plugin-reviews", market.Reviews)
+	r.Get("/api/admin/plugin-reviews/{id}", market.ReviewDetail)
 
 	// Plugin UIs, reverse-proxied to their sidecar (gated in the handler).
 	r.Handle("/plugins/*", pluginsH.PluginProxy())

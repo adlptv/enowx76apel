@@ -614,7 +614,25 @@ export const adminApi = {
   pluginScan: () => api.get<PluginScanSettings>("/api/admin/plugin-scan"),
   savePluginScan: (s: { ai_review_endpoint: string; ai_review_model: string; ai_review_enabled: boolean; ai_review_api_key?: string }) =>
     api.put<{ ok: boolean }>("/api/admin/plugin-scan", s),
+  pluginReviews: (verdict = "") => api.get<{ reviews: PluginReview[] }>(`/api/admin/plugin-reviews${verdict ? `?verdict=${verdict}` : ""}`),
+  pluginReview: (id: number) => api.get<PluginReviewDetail>(`/api/admin/plugin-reviews/${id}`),
 };
+
+export interface PluginReview {
+  id: number;
+  name: string;
+  slug: string;
+  runtime: string;
+  verdict: string; // approved | rejected
+  reason: string;
+  scan_stage: string; // heuristics | ai
+  created_at: string;
+  username: string;
+  display_name: string;
+}
+export interface PluginReviewDetail extends PluginReview {
+  sources: { path: string; content: string }[];
+}
 
 export interface PostCategory {
   key: string;

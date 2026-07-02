@@ -417,6 +417,24 @@ func (m *Manager) InstallPlugin(ctx context.Context, id string) (string, error) 
 	return string(raw), nil
 }
 
+// ReviewLog lists the plugin review audit log (moderator).
+func (m *Manager) ReviewLog(ctx context.Context, query string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/admin/plugin-reviews"+query, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// ReviewDetail returns one review with its source snapshot.
+func (m *Manager) ReviewDetail(ctx context.Context, id string) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/admin/plugin-reviews/"+id, nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // AdminSettings gets the admin settings (endpoint + has_key, never the key).
 func (m *Manager) AdminSettings(ctx context.Context) (string, error) {
 	var raw json.RawMessage

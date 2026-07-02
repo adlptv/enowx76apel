@@ -119,6 +119,36 @@ func (h *Market) Install(w http.ResponseWriter, r *http.Request) {
 	writeData(w, map[string]any{"installed": true, "id": meta.Slug})
 }
 
+// GET /api/admin/plugin-reviews — the review audit log (proxied).
+func (h *Market) Reviews(w http.ResponseWriter, r *http.Request) {
+	if !h.guard(w, r) {
+		return
+	}
+	q := ""
+	if v := strings.TrimSpace(r.URL.Query().Get("verdict")); v != "" {
+		q = "?verdict=" + v
+	}
+	raw, err := h.sync.ReviewLog(r.Context(), q)
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	h.rawJSON(w, raw)
+}
+
+// GET /api/admin/plugin-reviews/{id} — one review + its source snapshot.
+func (h *Market) ReviewDetail(w http.ResponseWriter, r *http.Request) {
+	if !h.guard(w, r) {
+		return
+	}
+	raw, err := h.sync.ReviewDetail(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		writeAPIErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	h.rawJSON(w, raw)
+}
+
 // GET /api/admin/plugin-scan — the AI scan settings (proxied to cloud).
 func (h *Market) GetScanSettings(w http.ResponseWriter, r *http.Request) {
 	if !h.guard(w, r) {

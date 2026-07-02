@@ -3,9 +3,10 @@ import { Loader2, Users, Copy, ScrollText, BarChart3, ShieldCheck, ShieldOff, Se
 import { openProfile } from "../os/profileViewer";
 import { useAdminEvents } from "../os/adminBus";
 import { useDialog } from "../os/dialog";
-import { adminApi, modApi, searchApi, type FlaggedLink, type ModAction, type AdminStats, type ProviderModel } from "../lib/api";
+import { FileSearch, X } from "lucide-react";
+import { adminApi, modApi, searchApi, type FlaggedLink, type ModAction, type AdminStats, type ProviderModel, type PluginReview, type PluginReviewDetail } from "../lib/api";
 
-type Tab = "stats" | "flags" | "users" | "models" | "scan" | "log";
+type Tab = "stats" | "flags" | "users" | "models" | "scan" | "reviews" | "log";
 
 // AdminApp is the moderator-only Admin Tools app. It only appears in the dock
 // for moderators (see apps registry), and every endpoint it calls is role-gated
@@ -19,6 +20,7 @@ export function AdminApp() {
     { id: "users", label: "Users", icon: Users },
     { id: "models", label: "Models", icon: Boxes },
     { id: "scan", label: "Plugin scan", icon: ShieldCheck },
+    { id: "reviews", label: "Review log", icon: FileSearch },
     { id: "log", label: "Mod log", icon: ScrollText },
   ];
   const NavBtn = ({ t }: { t: { id: Tab; label: string; icon: typeof Users } }) => {
@@ -54,6 +56,7 @@ export function AdminApp() {
         {tab === "users" && <UsersTab />}
         {tab === "models" && <ModelsTab />}
         {tab === "scan" && <PluginScanTab />}
+        {tab === "reviews" && <ReviewLogTab />}
         {tab === "log" && <LogTab />}
       </div>
     </div>
@@ -518,6 +521,91 @@ function PluginScanTab() {
       </div>
       {msg && <div className="text-xs text-white/60">{msg}</div>}
       <button onClick={save} disabled={saving} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:opacity-90 disabled:opacity-50">{saving ? "Saving…" : "Save settings"}</button>
+    </div>
+  );
+}
+
+// ReviewLogTab shows every plugin publish attempt + verdict; clicking one opens
+// the scanned source so a moderator can audit what was approved/rejected.
+function ReviewLogTab() {
+  const [items, setItems] = useState<PluginReview[] | null>(null);
+  const [filter, setFilter] = useState<"" | "approved" | "rejected">("");
+  const [detail, setDetail] = useState<PluginReviewDetail | null>(null);
+  const [err, setErr] = useState("");
+
+  const load = useCallback((v: string) => {
+    adminApi.pluginReviews(v).then((r) => { setItems(r.reviews ?? []); setErr(""); }).catch((e) => setErr(e instanceof Error ? e.message : "failed"));
+  }, []);
+  useEffect(() => load(filter), [load, filter]);
+
+  const open = async (id: number) => {
+    try { setDetail(await adminApi.pluginReview(id)); } catch { /* ignore */ }
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-1">
+        {(["", "approved", "rejected"] as const).map((v) => (
+          <button key={v || "all"} onClick={() => setFilter(v)} className={`rounded-lg px-2.5 py-1 text-xs ${filter === v ? "bg-white/12 text-white" : "text-white/45 hover:text-white/80"}`}>
+            {v === "" ? "All" : v === "approved" ? "Approved" : "Rejected"}
+          </button>
+        ))}
+      </div>
+      {err && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{err}</div>}
+      {!items ? (
+        <div className="h-10 animate-pulse rounded-lg bg-white/5" />
+      ) : items.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs text-white/40">No reviews yet.</div>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((r) => (
+            <button key={r.id} onClick={() => open(r.id)} className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-left hover:bg-white/[0.05]">
+              <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${r.verdict === "approved" ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>{r.verdict}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-xs font-medium text-white">{r.name}</span>
+                  <span className="rounded bg-white/10 px-1 text-[9px] uppercase text-white/50">{r.runtime}</span>
+                  <span className="rounded bg-white/5 px-1 text-[9px] text-white/40">{r.scan_stage}</span>
+                </div>
+                {r.reason && <div className="mt-0.5 truncate text-[11px] text-red-300/80">{r.reason}</div>}
+                <div className="mt-0.5 text-[10px] text-white/30">by {r.display_name || r.username} · {r.created_at}</div>
+              </div>
+              <FileSearch className="h-3.5 w-3.5 shrink-0 text-white/30" />
+            </button>
+          ))}
+        </div>
+      )}
+      {detail && <ReviewDetailModal r={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+function ReviewDetailModal({ r, onClose }: { r: PluginReviewDetail; onClose: () => void }) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex h-[85%] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#11131a] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
+          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${r.verdict === "approved" ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>{r.verdict}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-white">{r.name}</div>
+            <div className="truncate text-[10px] text-white/40">{r.slug} · {r.runtime} · {r.scan_stage} · by {r.display_name || r.username}</div>
+          </div>
+          <button onClick={onClose} className="rounded p-1 text-white/40 hover:bg-white/10 hover:text-white"><X className="h-4 w-4" /></button>
+        </div>
+        {r.reason && <div className="border-b border-white/5 bg-red-500/[0.06] px-4 py-2 text-xs text-red-300">Reason: {r.reason}</div>}
+        <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
+          {(r.sources ?? []).length === 0 ? (
+            <div className="text-xs text-white/40">No source snapshot captured.</div>
+          ) : (
+            r.sources.map((f, i) => (
+              <div key={i} className="overflow-hidden rounded-lg border border-white/10">
+                <div className="border-b border-white/5 bg-white/[0.03] px-3 py-1.5 font-mono text-[11px] text-white/60">{f.path}</div>
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[10px] leading-relaxed text-white/75">{f.content}</pre>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
