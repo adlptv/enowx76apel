@@ -152,6 +152,10 @@ export const codexApi = {
 export const leonardoApi = {
   fromCookie: (cookie: string, label?: string) =>
     api.post<{ id: number; email: string }>("/api/accounts/leonardo/cookie", { cookie, label }),
+  browserStart: () => api.post<{ session: string }>("/api/accounts/leonardo/browser/start"),
+  browserPoll: (session: string) =>
+    api.post<{ ready: boolean; id?: number; email?: string; note?: string }>("/api/accounts/leonardo/browser/poll", { session }),
+  browserCancel: (session: string) => api.post<{ ok: boolean }>("/api/accounts/leonardo/browser/cancel", { session }),
 };
 
 export const antigravityApi = {

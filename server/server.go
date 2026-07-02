@@ -157,6 +157,9 @@ func New(addr string, d Deps) *Server {
 		r.Post("/accounts/antigravity/manual", antigravity.Manual)
 
 		r.Post("/accounts/leonardo/cookie", leonardoAcc.FromCookie)
+		r.Post("/accounts/leonardo/browser/start", leonardoAcc.BrowserStart)
+		r.Post("/accounts/leonardo/browser/poll", leonardoAcc.BrowserPoll)
+		r.Post("/accounts/leonardo/browser/cancel", leonardoAcc.BrowserCancel)
 
 		r.Get("/local-sources", local.Scan)
 		r.Post("/local-sources/import", local.Import)

@@ -1,16 +1,16 @@
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, ExternalLink, Loader2 } from "lucide-react";
 import { ProviderIcon } from "./ProviderIcon";
 import { accountsApi, leonardoApi, type Provider } from "../lib/api";
 
-type Tab = "cookie" | "manual";
+type Tab = "browser" | "manual";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "cookie", label: "From Cookie" },
+  { id: "browser", label: "From Browser" },
   { id: "manual", label: "Manual" },
 ];
 
 export function LeonardoAddModal({ provider, onClose, onSaved }: { provider: Provider; onClose: () => void; onSaved: () => void }) {
-  const [tab, setTab] = useState<Tab>("cookie");
+  const [tab, setTab] = useState<Tab>("browser");
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="flex max-h-[85%] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#11131a] shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -28,7 +28,7 @@ export function LeonardoAddModal({ provider, onClose, onSaved }: { provider: Pro
           ))}
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-4">
-          {tab === "cookie" ? <CookieTab onSaved={onSaved} /> : <ManualTab onSaved={onSaved} />}
+          {tab === "browser" ? <BrowserTab onSaved={onSaved} /> : <ManualTab onSaved={onSaved} />}
         </div>
       </div>
     </div>
@@ -44,30 +44,64 @@ function Primary({ onClick, disabled, children }: { onClick: () => void; disable
   return <button onClick={onClick} disabled={disabled} className="w-full rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:opacity-90 disabled:opacity-50">{children}</button>;
 }
 
-function CookieTab({ onSaved }: { onSaved: () => void }) {
-  const [cookie, setCookie] = useState("");
+function BrowserTab({ onSaved }: { onSaved: () => void }) {
+  const [session, setSession] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const submit = async () => {
+  const [waiting, setWaiting] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => () => { if (timer.current) window.clearInterval(timer.current); }, []);
+
+  const start = async () => {
     setErr("");
     setBusy(true);
     try {
-      await leonardoApi.fromCookie(cookie.trim());
-      onSaved();
+      const { session } = await leonardoApi.browserStart();
+      setSession(session);
+      setWaiting(true);
+      timer.current = window.setInterval(async () => {
+        try {
+          const r = await leonardoApi.browserPoll(session);
+          if (r.ready) {
+            if (timer.current) window.clearInterval(timer.current);
+            onSaved();
+          }
+        } catch { /* keep polling */ }
+      }, 3000);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "failed");
+      setErr(e instanceof Error ? e.message : "failed to open browser");
     } finally {
       setBusy(false);
     }
   };
+
+  const cancel = async () => {
+    if (timer.current) window.clearInterval(timer.current);
+    if (session) await leonardoApi.browserCancel(session).catch(() => {});
+    setWaiting(false);
+    setSession("");
+  };
+
+  if (waiting) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 text-xs text-white/70">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-300" />
+          A browser window opened — log in to Leonardo there. This closes automatically once you're signed in.
+        </div>
+        <button onClick={cancel} className="w-full rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/5">Cancel</button>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
-      <p className="text-xs text-white/50">
-        Log in at app.leonardo.ai, open DevTools → Network → any request to <span className="font-mono">app.leonardo.ai</span>, and copy the full <span className="font-mono">Cookie</span> request header. enowx fetches your session token from it automatically.
-      </p>
-      <textarea value={cookie} onChange={(e) => setCookie(e.target.value)} spellCheck={false} placeholder="__Secure-next-auth.session-token=…; other=…" className="h-32 w-full resize-none rounded-lg border border-white/10 bg-black/30 p-3 font-mono text-xs text-white placeholder:text-white/25 focus:border-white/25 focus:outline-none" />
+      <p className="text-xs text-white/50">Open Leonardo in a real browser window and log in. enowx reads your session automatically — no copy/paste, and it passes Leonardo's bot check.</p>
       <Err msg={err} />
-      <Primary onClick={submit} disabled={busy || !cookie.trim()}>{busy ? "Fetching session…" : "Add account"}</Primary>
+      <Primary onClick={start} disabled={busy}>
+        <span className="flex items-center justify-center gap-1.5">{busy ? "Opening…" : "Open Leonardo login"} <ExternalLink className="h-3.5 w-3.5" /></span>
+      </Primary>
+      <p className="text-[11px] text-white/35">Requires Chrome, Edge, or Chromium installed. If none is found, use the Manual tab.</p>
     </div>
   );
 }
