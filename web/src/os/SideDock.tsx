@@ -75,7 +75,7 @@ export function SideDock({
                 {app.icon}
               </span>
               {app.badge && (
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-violet-500 px-1 py-[1px] text-[7px] font-bold uppercase leading-none text-white shadow">
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-400 px-1 py-[1px] text-[7px] font-bold uppercase leading-none text-black shadow ring-1 ring-[var(--window-bg)]">
                   {app.badge}
                 </span>
               )}

@@ -1,34 +1,48 @@
-import { useEffect, useState } from "react";
-import { Puzzle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, AlertTriangle, Puzzle } from "lucide-react";
 import { pluginsApi, type PluginManifest } from "../lib/api";
 import type { DesktopApp } from "./types";
 
 // PLUGIN_PREFIX namespaces plugin app ids so they never collide with built-ins.
 export const PLUGIN_PREFIX = "plugin:";
 
-// PluginFrame renders a plugin's UI (served at /plugins/<id>/) in an iframe. For
-// a sidecar plugin it must be started first — offer a start button if not.
+// PluginFrame shows a plugin's UI directly. If its sidecar isn't running it
+// auto-starts it (no manual button), showing a brief loading state, then loads
+// the UI from /plugins/<id>/.
 function PluginFrame({ plugin }: { plugin: PluginManifest }) {
-  const [running, setRunning] = useState(!!plugin.running || plugin.runtime === "static");
+  const isStatic = plugin.runtime === "static";
+  const [ready, setReady] = useState(isStatic || !!plugin.running);
   const [err, setErr] = useState("");
+  const started = useRef(false);
 
-  const start = async () => {
-    setErr("");
-    try {
-      await pluginsApi.start(plugin.id);
-      setRunning(true);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "failed to start");
-    }
-  };
+  useEffect(() => {
+    if (ready || started.current) return;
+    started.current = true;
+    (async () => {
+      try {
+        await pluginsApi.start(plugin.id);
+        // Give the sidecar a moment to bind its port before loading the iframe.
+        setTimeout(() => setReady(true), 600);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "failed to start plugin");
+      }
+    })();
+  }, [ready, plugin.id]);
 
-  if (!running) {
+  if (err) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <Puzzle className="h-8 w-8 text-white/40" />
-        <p className="text-sm text-white/60">{plugin.name} isn't running.</p>
-        {err && <p className="text-xs text-red-300">{err}</p>}
-        <button onClick={start} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:opacity-90">Start plugin</button>
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-white/60">
+        <AlertTriangle className="h-7 w-7 text-red-400/80" />
+        <p className="text-sm">Couldn't start {plugin.name}.</p>
+        <p className="text-xs text-red-300">{err}</p>
+      </div>
+    );
+  }
+  if (!ready) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-white/50">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <p className="text-xs">Starting {plugin.name}…</p>
       </div>
     );
   }
