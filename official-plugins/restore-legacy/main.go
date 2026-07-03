@@ -27,6 +27,13 @@ func main() {
 	if port == "" {
 		port = "8000"
 	}
+	// Restore any persisted progress so a run survives an app restart. If the
+	// last run was interrupted mid-way (still "running"), resume it automatically
+	// — the import is idempotent (already-added accounts are skipped), so it
+	// continues from where it stopped and the UI shows the bar again.
+	if loadProgress() && job.d.Running {
+		go runRestore()
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/restore", handleRestore)
 	mux.HandleFunc("/api/progress", handleProgress)
@@ -126,6 +133,39 @@ func (p *progress) snapshot() progressData {
 	return cp
 }
 
+// progressFile is where the run state is persisted so it survives an app restart.
+// The plugin's working dir is its install folder, which persists across restarts.
+const progressFile = "progress.json"
+
+// save writes the current state to disk. Call with the lock NOT held.
+func (p *progress) save() {
+	snap := p.snapshot()
+	b, err := json.Marshal(snap)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(progressFile, b, 0o644)
+}
+
+// loadProgress reads a persisted run into `job`, returning true if one existed.
+func loadProgress() bool {
+	b, err := os.ReadFile(progressFile)
+	if err != nil {
+		return false
+	}
+	var d progressData
+	if json.Unmarshal(b, &d) != nil {
+		return false
+	}
+	if d.Unsupported == nil {
+		d.Unsupported = map[string]int{}
+	}
+	job.mu.Lock()
+	job.d = d
+	job.mu.Unlock()
+	return true
+}
+
 // handleRestore starts a restore run in the background (idempotent: if one is
 // already running it just returns the current progress). Returns immediately.
 func handleRestore(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +178,7 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 	// reset for a fresh run
 	job.d = progressData{Running: true, Unsupported: map[string]int{}}
 	job.mu.Unlock()
+	job.save()
 
 	go runRestore()
 	writeJSON(w, http.StatusOK, job.snapshot())
@@ -159,6 +200,7 @@ func runRestore() {
 			job.d.Error = errMsg
 		}
 		job.mu.Unlock()
+		job.save()
 	}
 
 	leg, err := fetchLegacy()
@@ -186,6 +228,7 @@ func runRestore() {
 	job.mu.Lock()
 	job.d.Total = total
 	job.mu.Unlock()
+	job.save()
 
 	for _, a := range leg.Accounts {
 		v2, ok := providerMap[a.Provider]
@@ -200,7 +243,11 @@ func runRestore() {
 			job.mu.Lock()
 			job.d.Skipped++
 			job.d.Done++
+			done := job.d.Done
 			job.mu.Unlock()
+			if done%10 == 0 {
+				job.save() // checkpoint periodically so a restart resumes near here
+			}
 			continue
 		}
 		ok = addAccount(v2, a.Email, a.Creds)
@@ -212,7 +259,11 @@ func runRestore() {
 			job.d.Failed++
 		}
 		job.d.Done++
+		done := job.d.Done
 		job.mu.Unlock()
+		if done%10 == 0 {
+			job.save()
+		}
 	}
 	finish("Done! Enable cloud sync to back your accounts up.", "")
 }
