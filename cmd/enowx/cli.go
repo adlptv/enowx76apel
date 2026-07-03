@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/enowdev/enowx/config"
@@ -66,27 +67,28 @@ func serverUp(cfg config.Config) bool {
 
 func startCmd(args []string) {
 	cfg := loadCfg()
-	bg := false
+	// Background by default; --foreground (-f) runs in this terminal (handy for
+	// debugging or under a supervisor like systemd/launchd).
+	fg := false
 	for _, a := range args {
-		if a == "--daemon" || a == "-d" {
-			bg = true
+		if a == "--foreground" || a == "-f" {
+			fg = true
 		}
+	}
+	if fg {
+		runServer()
+		return
 	}
 	if serverUp(cfg) {
 		fmt.Printf("enx is already running — dashboard %s\n", base(cfg))
 		return
 	}
-	if bg {
-		pid, err := daemon.Start(cfg.RuntimeDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "start: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("enx started in the background (pid %d) — dashboard %s\n", pid, base(cfg))
-		return
+	pid, err := daemon.Start(cfg.RuntimeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "start: %v\n", err)
+		os.Exit(1)
 	}
-	// Foreground: run the server directly.
-	runServer()
+	fmt.Printf("enx started (pid %d) — dashboard %s\n", pid, base(cfg))
 }
 
 func stopCmd() {
@@ -109,7 +111,8 @@ func restartCmd(args []string) {
 	}
 	// Restart always goes to the background (a restart of a foreground process
 	// from another shell doesn't make sense).
-	startCmd(append(args, "--daemon"))
+	startCmd(nil)
+	_ = args
 }
 
 func statusCmd() {
@@ -262,14 +265,19 @@ func tunnelCmd(args []string) {
 	}
 }
 
+func versionCmd() {
+	fmt.Printf("enx %s\n", version)
+	fmt.Printf("  %s/%s · %s\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
+}
+
 func printHelp() {
 	fmt.Print(`enx — enowx gateway
 
 Usage:
-  enx [start]           run the server in the foreground
-  enx start --daemon    run in the background (headless / VPS)
-  enx stop              stop the background server
-  enx restart           restart the background server
+  enx [start]           start the server in the background
+  enx start -f          run in the foreground (this terminal)
+  enx stop              stop the server
+  enx restart           restart the server
   enx status            show whether the server is running
   enx doctor            check the environment (runtimes, config, server)
   enx update [--check]  self-update to the latest release

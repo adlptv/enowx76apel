@@ -62,7 +62,7 @@ func main() {
 	case "tunnel":
 		tunnelCmd(rest)
 	case "version", "-v", "--version":
-		fmt.Printf("enx %s\n", version)
+		versionCmd()
 	case "help", "-h", "--help":
 		printHelp()
 	default:
