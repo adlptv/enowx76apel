@@ -1001,6 +1001,16 @@ func (m *Manager) CommunityStats(ctx context.Context) (string, error) {
 	return string(raw), nil
 }
 
+// LegacyAccounts proxies the account-restore migration lookup (decrypted old
+// provider accounts for the logged-in user).
+func (m *Manager) LegacyAccounts(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/legacy/accounts", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // NotificationsRead marks all notifications read.
 func (m *Manager) NotificationsRead(ctx context.Context) (string, error) {
 	var raw json.RawMessage

@@ -315,6 +315,7 @@ func New(addr string, d Deps) *Server {
 		r.Get("/search", syncH.Search)
 		r.Get("/notifications", syncH.Notifications)
 		r.Get("/community/stats", syncH.CommunityStats)
+		r.Get("/legacy/accounts", syncH.LegacyAccounts)
 		r.Post("/notifications/read", syncH.NotificationsRead)
 
 		r.Get("/tunnel/status", tun.Status)

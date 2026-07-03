@@ -1,0 +1,9 @@
+{
+  "id": "restore-legacy",
+  "name": "Restore Old Account",
+  "description": "Bring your provider accounts (and donation total) over from the previous enowx into this app. Runs locally; your credentials never leave your machine.",
+  "icon": "DownloadCloud",
+  "runtime": "go",
+  "entry": ".",
+  "ui": "public/index.html"
+}

@@ -277,6 +277,12 @@ func (h *Sync) CommunityStats(w http.ResponseWriter, r *http.Request) {
 	proxyJSON(w, out, err)
 }
 
+// LegacyAccounts proxies the account-restore lookup (old provider accounts).
+func (h *Sync) LegacyAccounts(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.LegacyAccounts(r.Context())
+	proxyJSON(w, out, err)
+}
+
 // NotificationsRead proxies marking notifications read.
 func (h *Sync) NotificationsRead(w http.ResponseWriter, r *http.Request) {
 	out, err := h.mgr.NotificationsRead(r.Context())
