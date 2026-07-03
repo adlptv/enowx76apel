@@ -178,7 +178,8 @@ func (m *Manager) Stop(id string) {
 		return
 	}
 	_ = pr.cmd.Process.Kill()
-	go func() { _ = pr.cmd.Wait() }()
+	// Don't Wait() here — the reaper goroutine started in Start() owns the single
+	// cmd.Wait(); killing the process makes it return and clean up.
 	m.mu.Lock()
 	pr.running = false
 	m.mu.Unlock()

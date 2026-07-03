@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/enowdev/enowx/config"
@@ -115,6 +116,16 @@ func main() {
 			Started:    time.Now(),
 		},
 	})
+
+	// Return freed heap to the OS periodically so RSS tracks real usage after a
+	// spike (e.g. warming a large pool) instead of holding the peak reservation.
+	go func() {
+		t := time.NewTicker(2 * time.Minute)
+		defer t.Stop()
+		for range t.C {
+			debug.FreeOSMemory()
+		}
+	}()
 
 	log.Printf("enx %s listening on %s", version, cfg.Addr())
 	if err := srv.ListenAndServe(); err != nil {
