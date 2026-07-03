@@ -8,7 +8,8 @@ function cardRelTime(iso: string): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
-import type { TopRole, ProfileLink, Equipped } from "../lib/api";
+import type { TopRole, ProfileLink, Equipped, NickTier, RoleBadge as RoleBadgeInfo } from "../lib/api";
+import { tierVars, tierClass, RoleBadges } from "../os/tier";
 
 // CardProfile is the shape the card renders. Both SyncUser (self) and
 // PublicProfile (others) satisfy it, so the card is reused in both places.
@@ -24,6 +25,8 @@ export interface CardProfile {
   links?: ProfileLink[];
   plan?: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  role_badges?: RoleBadgeInfo[];
   wears_tag?: boolean;
   guild_tag?: string;
   kleos?: number;
@@ -106,9 +109,9 @@ export function ProfileCard({ p, footer, action, compact }: { p: CardProfile; fo
         {eq?.title && (
           <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-300/80">{eq.title}</p>
         )}
-        {/* Name + handle + pronouns. */}
+        {/* Name (tier-colored) + handle + pronouns. */}
         <div className="flex items-baseline gap-1.5">
-          <span className="truncate text-base font-bold text-white">{p.display_name || p.username}</span>
+          <span className={`role-name truncate text-base font-bold${tierClass(p.nick_tier)}`} style={tierVars(p.nick_tier)}>{p.display_name || p.username}</span>
           {p.display_name && <span className="truncate text-xs text-white/35">@{p.username}</span>}
         </div>
         {/* Presence + rating. */}
@@ -123,9 +126,9 @@ export function ProfileCard({ p, footer, action, compact }: { p: CardProfile; fo
         </div>
         {p.pronouns && <p className="text-[11px] text-white/40">{p.pronouns}</p>}
 
-        {/* Badges. */}
+        {/* Badges: all held Discord roles, plus perk badges. */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {p.top_role?.name ? <RoleBadge role={p.top_role} /> : p.plan && <PlanBadge plan={p.plan} />}
+          <RoleBadges roles={p.role_badges} max={8} />
           {p.wears_tag && <TagBadge tag={p.guild_tag} />}
           {p.is_premium && <PremiumBadge />}
           {p.is_donor && <DonorBadge />}
@@ -170,37 +173,7 @@ export function ProfileCard({ p, footer, action, compact }: { p: CardProfile; fo
   );
 }
 
-// hex turns a Discord decimal color into #rrggbb.
-function hex(n: number): string {
-  return "#" + (n & 0xffffff).toString(16).padStart(6, "0");
-}
 
-function RoleBadge({ role }: { role: TopRole }) {
-  const c1 = hex(role.primary || role.color);
-  const c2 = role.secondary ? hex(role.secondary) : c1;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-white/10"
-      style={{ background: `${c1}22` }}
-    >
-      {role.icon_url && <img src={role.icon_url} alt="" className="h-3.5 w-3.5" />}
-      <span
-        className="bg-clip-text text-transparent"
-        style={{ backgroundImage: `linear-gradient(90deg, ${c1}, ${c2})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
-      >
-        {role.name}
-      </span>
-    </span>
-  );
-}
-
-function PlanBadge({ plan }: { plan: string }) {
-  return (
-    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
-      {plan}
-    </span>
-  );
-}
 
 function ModBadge() {
   return (

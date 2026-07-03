@@ -7,6 +7,7 @@ import { EmojiPicker } from "../components/EmojiPicker";
 import { useProfile } from "../os/useProfile";
 import { useDialog } from "../os/dialog";
 import { useFeed, loadFeed, loadMoreFeed, createPost, upvotePost, reactPost, editPost, deletePost } from "../os/postsBus";
+import { tierVars, tierClass, RoleBadges } from "../os/tier";
 import { RowSkeleton } from "../components/Skeleton";
 import { openProfile } from "../os/profileViewer";
 import { openPost, closePost, usePostViewer } from "../os/postViewer";
@@ -317,7 +318,10 @@ function PostCard({ p, myUsername, detail = false }: { p: Post; myUsername?: str
         <div className="mb-1 flex items-center gap-2 text-[11px] text-white/40">
           <span className="rounded-full bg-white/10 px-1.5 py-0.5 uppercase tracking-wide text-white/60">{p.category}</span>
           <div className="relative" onClick={stop}>
-            <button onClick={() => setOpenUser(true)} className="font-medium text-white/70 hover:underline">{name}</button>
+            <button onClick={() => setOpenUser(true)} className="role-name-btn flex items-center gap-1.5 font-medium hover:underline" style={tierVars(p.nick_tier)}>
+              <span className={`role-name${tierClass(p.nick_tier)}`}>{name}</span>
+              <RoleBadges roles={p.role_badges} max={2} size="xs" />
+            </button>
             {openUser && (
               <Popover onClose={() => setOpenUser(false)} anchor="left" className="w-72">
                 <UserCard userId={p.user_id} />

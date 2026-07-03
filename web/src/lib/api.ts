@@ -602,6 +602,11 @@ export interface TopRole {
   secondary: number | null; // gradient secondary (decimal)
 }
 
+// NickTier drives the 4 nick colors (god > moderator > premium > free).
+export type NickTier = "free" | "premium" | "moderator" | "god";
+// A held Discord role, rendered as a badge (same shape as TopRole).
+export type RoleBadge = TopRole;
+
 export interface SyncUser {
   discord_id: string;
   username: string;
@@ -609,6 +614,9 @@ export interface SyncUser {
   roles: string[];
   plan: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  is_admin?: boolean;
+  role_badges?: RoleBadge[];
   wears_tag?: boolean;
   guild_tag?: string;
   kleos?: number;
@@ -841,6 +849,9 @@ export interface Post {
   display_name?: string;
   avatar_url?: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  is_admin?: boolean;
+  role_badges?: RoleBadge[];
   wears_tag?: boolean;
   guild_tag?: string;
   upvotes: number;
@@ -862,6 +873,9 @@ export interface Comment {
   display_name?: string;
   avatar_url?: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  is_admin?: boolean;
+  role_badges?: RoleBadge[];
   wears_tag?: boolean;
   guild_tag?: string;
   reactions?: Reaction[];
@@ -1125,6 +1139,9 @@ export interface ChatMessage {
   display_name?: string;
   avatar_url?: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  is_admin?: boolean;
+  role_badges?: RoleBadge[];
   wears_tag?: boolean;
   guild_tag?: string;
   reactions?: Reaction[];
@@ -1226,6 +1243,9 @@ export interface PublicProfile {
   plan: string;
   top_role_id: string;
   top_role?: TopRole | null;
+  nick_tier?: NickTier;
+  is_admin?: boolean;
+  role_badges?: RoleBadge[];
   wears_tag: boolean;
   guild_tag: string;
   kleos: number;

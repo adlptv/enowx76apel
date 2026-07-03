@@ -4,10 +4,10 @@ import { AppShell } from "./shell";
 import { Popover } from "../components/Popover";
 import { ProfileCard } from "../components/ProfileCard";
 import { EmojiPicker } from "../components/EmojiPicker";
-import { Tooltip } from "../components/Tooltip";
 import { useProfile } from "../os/useProfile";
 import { useChat, sendChat, editChat, deleteChat, reactChat, loadChannel, loadOlderMessages, markRead } from "../os/chatBus";
 import { useReverseScroll } from "../os/useReverseScroll";
+import { tierVars, tierClass, RoleBadges } from "../os/tier";
 import { MessageSkeleton } from "../components/Skeleton";
 import { useDialog } from "../os/dialog";
 import { openProfile } from "../os/profileViewer";
@@ -50,7 +50,7 @@ async function handleMusicClick(m: MusicShare, dialog: ReturnType<typeof useDial
     await dialog.alert({ title: "Couldn't add playlist", message: e instanceof Error ? e.message : "" });
   }
 }
-import { profileApi, modApi, type ChatMessage, type PublicProfile, type TopRole } from "../lib/api";
+import { profileApi, modApi, type ChatMessage, type PublicProfile } from "../lib/api";
 
 interface ReplyTarget {
   id: number;
@@ -382,15 +382,11 @@ function MessageRow({
             <span className="truncate">{m.reply_content}</span>
           </div>
         )}
-        <div className="flex items-baseline gap-2">
-          <button onClick={onOpenUser} className="role-name-btn flex items-center gap-1 text-xs font-semibold" style={roleVars(m.top_role)}>
-            {m.top_role?.icon_url && (
-              <Tooltip label={m.top_role.name} place="top">
-                <img src={m.top_role.icon_url} alt="" className="h-3.5 w-3.5 self-center" />
-              </Tooltip>
-            )}
-            <span className={`role-name${roleHasGradient(m.top_role) ? " role-gradient" : ""}`}>{name}</span>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <button onClick={onOpenUser} className="role-name-btn flex items-center gap-1 text-xs font-semibold" style={tierVars(m.nick_tier)}>
+            <span className={`role-name${tierClass(m.nick_tier)}`}>{name}</span>
           </button>
+          <RoleBadges roles={m.role_badges} max={2} size="xs" />
           <span className="text-[10px] text-white/30">{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
         {editing ? (
@@ -442,25 +438,7 @@ function MessageRow({
   );
 }
 
-// hex turns a Discord decimal color into #rrggbb.
-function hexColor(n: number): string {
-  return "#" + (n & 0xffffff).toString(16).padStart(6, "0");
-}
 
-// roleHasGradient reports whether the role has a distinct secondary color.
-function roleHasGradient(role?: TopRole | null): boolean {
-  if (!role || !role.name || !role.secondary) return false;
-  return hexColor(role.secondary) !== hexColor(role.primary || role.color);
-}
-
-// roleVars exposes the role colors as CSS vars (--c1/--c2) the .role-name styles
-// read, so the gradient can flow + glow on hover via CSS.
-function roleVars(role?: TopRole | null): React.CSSProperties {
-  if (!role || !role.name) return {};
-  const c1 = hexColor(role.primary || role.color);
-  const c2 = role.secondary ? hexColor(role.secondary) : c1;
-  return { ["--c1" as string]: c1, ["--c2" as string]: c2 };
-}
 
 function ActBtn({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
   return (

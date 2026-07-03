@@ -21,6 +21,10 @@
   background-clip: text;
   color: transparent;
 }
+/* Premium's gold nick has a persistent soft glow (not only on hover). */
+.role-name.tier-glow {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--c1) 60%, transparent));
+}
 .role-name-btn:hover .role-name {
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--c1) 55%, transparent));
 }
