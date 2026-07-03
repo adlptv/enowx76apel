@@ -26,6 +26,15 @@ function relTime(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+// MktTab is one marketplace tab: icon + label, never wraps (the row scrolls).
+function MktTab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button onClick={onClick} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium ${active ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}>
+      {icon} {label}
+    </button>
+  );
+}
+
 export function MarketplaceApp() {
   const rootProfile = useProfile();
   const [view, setView] = useState<View>("browse");
@@ -66,14 +75,16 @@ export function MarketplaceApp() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-white/5 px-4 py-2.5">
-        <button onClick={() => { setView("browse"); setKind("official"); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "browse" && kind === "official" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><ShieldCheck className="h-3.5 w-3.5" /> Official Store</button>
-        <button onClick={() => { setView("browse"); setKind("community"); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "browse" && kind === "community" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Store className="h-3.5 w-3.5" /> Community</button>
-        <button onClick={() => setView("mine")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "mine" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Boxes className="h-3.5 w-3.5" /> My Listings</button>
-        <button onClick={() => { setView("deals"); setOpenThread(null); }} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "deals" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Handshake className="h-3.5 w-3.5" /> My Deals</button>
-        <button onClick={() => setView("orders")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "orders" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><ShoppingCart className="h-3.5 w-3.5" /> My Orders</button>
-        <button onClick={() => setView("payout")} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${view === "payout" ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5"}`}><Wallet className="h-3.5 w-3.5" /> Payout</button>
-        <button onClick={onSell} className="ml-auto flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"><Plus className="h-3.5 w-3.5" /> Sell</button>
+      <div className="flex items-center gap-1 border-b border-white/5 px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
+          <MktTab active={view === "browse" && kind === "official"} onClick={() => { setView("browse"); setKind("official"); }} icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Official" />
+          <MktTab active={view === "browse" && kind === "community"} onClick={() => { setView("browse"); setKind("community"); }} icon={<Store className="h-3.5 w-3.5" />} label="Community" />
+          <MktTab active={view === "mine"} onClick={() => setView("mine")} icon={<Boxes className="h-3.5 w-3.5" />} label="My Listings" />
+          <MktTab active={view === "deals"} onClick={() => { setView("deals"); setOpenThread(null); }} icon={<Handshake className="h-3.5 w-3.5" />} label="Deals" />
+          <MktTab active={view === "orders"} onClick={() => setView("orders")} icon={<ShoppingCart className="h-3.5 w-3.5" />} label="Orders" />
+          <MktTab active={view === "payout"} onClick={() => setView("payout")} icon={<Wallet className="h-3.5 w-3.5" />} label="Payout" />
+        </div>
+        <button onClick={onSell} className="ml-1 flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"><Plus className="h-3.5 w-3.5" /> Sell</button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {view === "payout" ? (

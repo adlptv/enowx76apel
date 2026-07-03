@@ -55,6 +55,15 @@ body,
   backdrop-filter: blur(18px) saturate(140%);
 }
 
+/* Hide the scrollbar on horizontally-scrolling tab strips (e.g. marketplace). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Thin, theme-matching scrollbar for the terminal tab strip. */
 .term-tabs {
   scrollbar-width: thin;
