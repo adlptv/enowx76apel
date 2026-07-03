@@ -16,6 +16,8 @@ func routeModel(modelID string) string {
 	switch {
 	case strings.HasPrefix(modelID, "kiro-"), strings.Contains(modelID, "codewhisperer"):
 		return "kiro"
+	case strings.HasPrefix(modelID, "glm-"), strings.HasPrefix(modelID, "autoclaw-"), modelID == "cheap", modelID == "deepseek", modelID == "auto":
+		return "autoclaw"
 	default:
 		return "codebuddy"
 	}

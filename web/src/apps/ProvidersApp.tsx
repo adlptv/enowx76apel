@@ -7,6 +7,7 @@ import { KiroAddModal } from "../components/KiroAddModal";
 import { CodexAddModal } from "../components/CodexAddModal";
 import { AntigravityAddModal } from "../components/AntigravityAddModal";
 import { LeonardoAddModal } from "../components/LeonardoAddModal";
+import { AutoClawAddModal } from "../components/AutoClawAddModal";
 import { useDialog } from "../os/dialog";
 import { providersApi, accountsApi, customProviderApi, type Provider, type Account, type CustomModel } from "../lib/api";
 
@@ -138,6 +139,16 @@ export function ProvidersApp() {
       )}
       {adding && adding.name === "leonardo" && (
         <LeonardoAddModal
+          provider={adding}
+          onClose={() => setAdding(null)}
+          onSaved={() => {
+            setAdding(null);
+            load();
+          }}
+        />
+      )}
+      {adding && adding.name === "autoclaw" && (
+        <AutoClawAddModal
           provider={adding}
           onClose={() => setAdding(null)}
           onSaved={() => {

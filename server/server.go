@@ -64,6 +64,7 @@ func New(addr string, d Deps) *Server {
 	dbg := handlers.NewDebug(d.Settings.Version, d.Settings.Started)
 	docs := handlers.NewDocs(d.Settings.Version)
 	kiro := handlers.NewKiro(d.Doer, d.Accounts)
+	autoclaw := handlers.NewAutoClaw(d.Accounts)
 	codex := handlers.NewCodex(d.Doer, d.Accounts)
 	antigravity := handlers.NewAntigravity(d.Doer, d.Accounts)
 	leonardoAcc := handlers.NewLeonardo(d.Accounts, d.Doer)
@@ -181,6 +182,10 @@ func New(addr string, d Deps) *Server {
 		r.Get("/accounts/kiro/aws/poll", kiro.AWSPoll)
 		r.Post("/accounts/kiro/oauth/start", kiro.OAuthStart)
 		r.Post("/accounts/kiro/oauth/exchange", kiro.OAuthExchange)
+
+		r.Post("/accounts/autoclaw/manual", autoclaw.Manual)
+		r.Post("/accounts/autoclaw/refresh", autoclaw.Refresh)
+		r.Get("/accounts/autoclaw/wallets", autoclaw.Wallets)
 
 		r.Post("/accounts/codex/oauth/start", codex.OAuthStart)
 		r.Post("/accounts/codex/oauth/exchange", codex.OAuthExchange)

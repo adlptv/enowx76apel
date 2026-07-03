@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -284,6 +286,71 @@ Usage:
   enx tunnel start      expose the dashboard via a public URL
   enx tunnel stop       tear the tunnel down
   enx tunnel status     show the current tunnel URL
+  enx autoclaw-login    run AutoClaw/autoglm auto-login (Python + CloakBrowser required)
   enx version           print the version
 `)
+}
+
+// autoclawLoginCmd runs the bundled Python auto-login script.
+func autoclawLoginCmd(args []string) {
+	// Locate the python script next to the binary, or under the project dir.
+	scriptDir := "cmd/autoclaw-login"
+	// Check common locations
+	candidates := []string{
+		filepath.Join("cmd", "autoclaw-login", "autoclaw_autologin.py"),
+		filepath.Join(filepath.Dir(os.Args[0]), "..", "cmd", "autoclaw-login", "autoclaw_autologin.py"),
+	}
+	if d, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(d, "cmd", "autoclaw-login", "autoclaw_autologin.py"))
+	}
+	// Also check where the binary's own source lives
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(filepath.Dir(exe), "..", "..", scriptDir, "autoclaw_autologin.py"),
+		)
+	}
+
+	var scriptPath string
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			scriptPath = c
+			break
+		}
+	}
+
+	if scriptPath == "" {
+		fmt.Fprintln(os.Stderr, "autoclaw-login: script not found. Run from the enowx project root or install the bundled scripts.")
+		fmt.Fprintf(os.Stderr, "  Looked in:\n")
+		for _, c := range candidates {
+			fmt.Fprintf(os.Stderr, "    %s\n", c)
+		}
+		os.Exit(1)
+	}
+
+	// Find python
+	python, err := exec.LookPath("python")
+	if err != nil {
+		python, err = exec.LookPath("python3")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "autoclaw-login: Python not found. Install Python 3.10+")
+			os.Exit(1)
+		}
+	}
+
+	scriptDirPath := filepath.Dir(scriptPath)
+	cmd := exec.Command(python, scriptPath)
+	cmd.Args = append([]string{python, scriptPath}, args...)
+	cmd.Dir = scriptDirPath
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	fmt.Printf("enx autoclaw-login — running %s from %s\n\n", filepath.Base(scriptPath), scriptDirPath)
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "autoclaw-login: %v\n", err)
+		os.Exit(1)
+	}
 }

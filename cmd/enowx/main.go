@@ -16,6 +16,7 @@ import (
 	"github.com/enowdev/enowx/core/pool"
 	"github.com/enowdev/enowx/core/provider"
 	"github.com/enowdev/enowx/core/provider/antigravity"
+	autoclawprovider "github.com/enowdev/enowx/core/provider/autoclaw"
 	"github.com/enowdev/enowx/core/provider/codebuddy"
 	"github.com/enowdev/enowx/core/provider/custommgr"
 	"github.com/enowdev/enowx/core/provider/codex"
@@ -61,6 +62,8 @@ func main() {
 		updateCmd(rest)
 	case "tunnel":
 		tunnelCmd(rest)
+	case "autoclaw-login", "autoclaw":
+		autoclawLoginCmd(rest)
 	case "version", "-v", "--version":
 		versionCmd()
 	case "help", "-h", "--help":
@@ -100,6 +103,33 @@ func runServer() {
 	reg.Register(antigravity.New(doer, saveCreds))
 	reg.Register(sunoprovider.New(doer))
 	reg.Register(leonardoprovider.New(doer))
+	reg.Register(autoclawprovider.New(doer, func(id int64, creds map[string]string) {
+		if err := db.Accounts().UpdateCreds(context.Background(), id, creds); err != nil {
+			log.Printf("autoclaw: persist creds for account %d: %v", id, err)
+		}
+	}))
+
+	// Wire background wallet checker + token refresher for autoclaw.
+	if acProv, err := reg.Get("autoclaw"); err == nil {
+		if ac, ok := acProv.(*autoclawprovider.Provider); ok {
+			bg := autoclawprovider.NewBackground(doer, func(id int64, creds map[string]string) {
+				if err := db.Accounts().UpdateCreds(context.Background(), id, creds); err != nil {
+					log.Printf("autoclaw: persist creds for account %d: %v", id, err)
+				}
+			}, func() []provider.Account {
+				saccs, err := db.Accounts().List(context.Background(), "autoclaw")
+				if err != nil {
+					return nil
+				}
+				paccs := make([]provider.Account, len(saccs))
+				for i, a := range saccs {
+					paccs[i] = provider.Account{ID: a.ID, Secret: a.Secret, Creds: a.Creds}
+				}
+				return paccs
+			})
+			ac.SetBackground(bg)
+		}
+	}
 
 	px := proxy.New(reg, pool.New(db.Accounts()), doer)
 	tun := tunnel.New(cfg.RuntimeDir, cfg.Port)

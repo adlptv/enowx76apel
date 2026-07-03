@@ -207,6 +207,15 @@ export const codexApi = {
     api.post<{ id: number }>("/api/accounts/codex/manual", { json, label }),
 };
 
+export const autoclawApi = {
+  manual: (json: string, label?: string) =>
+    api.post<{ id: number }>("/api/accounts/autoclaw/manual", { json, label }),
+  refresh: (opts: { refresh_token: string; source_id?: string; device_id?: string; label?: string }) =>
+    api.post<{ id: number }>("/api/accounts/autoclaw/refresh", opts),
+  wallets: () =>
+    api.get<{ wallets: Record<string, number>; total: number }>("/api/accounts/autoclaw/wallets"),
+};
+
 export interface PluginManifest {
   id: string;
   name: string;
