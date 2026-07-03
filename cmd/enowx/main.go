@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"github.com/enowdev/enowx/config"
+	"github.com/enowdev/enowx/core/daemon"
 	"github.com/enowdev/enowx/core/plugins"
 	"github.com/enowdev/enowx/core/pool"
 	"github.com/enowdev/enowx/core/provider"
@@ -31,14 +34,46 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "version", "-v", "--version":
-			fmt.Printf("enx %s\n", version)
-			return
-		}
+	// The detached daemon child (ENOWX_DAEMON=1) always runs the server.
+	if daemon.IsDaemon() {
+		runServer()
+		return
 	}
 
+	cmd := ""
+	var rest []string
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+		rest = os.Args[2:] // safe: len(os.Args) >= 2 here
+	}
+	switch cmd {
+	case "", "start":
+		startCmd(rest) // handles --daemon; otherwise runs in foreground
+	case "stop":
+		stopCmd()
+	case "restart":
+		restartCmd(rest)
+	case "status":
+		statusCmd()
+	case "doctor":
+		doctorCmd()
+	case "update":
+		updateCmd(rest)
+	case "tunnel":
+		tunnelCmd(rest)
+	case "version", "-v", "--version":
+		fmt.Printf("enx %s\n", version)
+	case "help", "-h", "--help":
+		printHelp()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", cmd)
+		printHelp()
+		os.Exit(1)
+	}
+}
+
+// runServer boots and runs the HTTP server (foreground or as the daemon child).
+func runServer() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -127,8 +162,21 @@ func main() {
 		}
 	}()
 
+	// Record our PID so `enx status/stop` can find this instance, and clean up
+	// (PID file + DB) on a clean shutdown signal.
+	daemon.WritePID(cfg.RuntimeDir)
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		<-sig
+		daemon.RemovePID(cfg.RuntimeDir)
+		_ = db.Close()
+		os.Exit(0)
+	}()
+
 	log.Printf("enx %s listening on %s", version, cfg.Addr())
 	if err := srv.ListenAndServe(); err != nil {
+		daemon.RemovePID(cfg.RuntimeDir)
 		log.Fatalf("serve: %v", err)
 	}
 }
