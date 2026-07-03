@@ -102,13 +102,13 @@ function StatsTab() {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatCard icon={<Users className="h-4 w-4" />} label="Users" value={s.users} accent="text-sky-300" />
-              <StatCard icon={<Crown className="h-4 w-4" />} label="Premium" value={s.premium_users} accent="text-amber-300" />
-              <StatCard icon={<Users className="h-4 w-4" />} label="Free" value={s.free_users} accent="text-white/60" />
-              <StatCard icon={<ShieldCheck className="h-4 w-4" />} label="Moderators" value={s.moderators} accent="text-emerald-300" />
+              <StatCard icon={<Users className="h-4 w-4" />} label="Users" value={s.users ?? 0} accent="text-sky-300" />
+              <StatCard icon={<Crown className="h-4 w-4" />} label="Premium" value={s.premium_users ?? 0} accent="text-amber-300" />
+              <StatCard icon={<Users className="h-4 w-4" />} label="Free" value={s.free_users ?? 0} accent="text-white/60" />
+              <StatCard icon={<ShieldCheck className="h-4 w-4" />} label="Moderators" value={s.moderators ?? 0} accent="text-emerald-300" />
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatCard icon={<Coins className="h-4 w-4" />} label="Upgrade revenue" value={`Rp${s.upgrade_revenue.toLocaleString("id-ID")}`} accent="text-emerald-300" />
+              <StatCard icon={<Coins className="h-4 w-4" />} label="Upgrade revenue" value={`Rp${(s.upgrade_revenue ?? 0).toLocaleString("id-ID")}`} accent="text-emerald-300" />
               <StatCard icon={<ScrollText className="h-4 w-4" />} label="Messages" value={s.messages} accent="text-violet-300" />
               <StatCard icon={<BarChart3 className="h-4 w-4" />} label="Posts" value={s.posts} accent="text-fuchsia-300" />
             </div>
