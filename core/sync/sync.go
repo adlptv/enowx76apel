@@ -983,6 +983,15 @@ func (m *Manager) Notifications(ctx context.Context) (string, error) {
 	return string(raw), nil
 }
 
+// CommunityStats proxies coarse community numbers (total + online users).
+func (m *Manager) CommunityStats(ctx context.Context) (string, error) {
+	var raw json.RawMessage
+	if err := m.call(ctx, http.MethodGet, "/community/stats", nil, &raw); err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
 // NotificationsRead marks all notifications read.
 func (m *Manager) NotificationsRead(ctx context.Context) (string, error) {
 	var raw json.RawMessage

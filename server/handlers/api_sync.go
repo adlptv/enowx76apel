@@ -271,6 +271,12 @@ func (h *Sync) Notifications(w http.ResponseWriter, r *http.Request) {
 	proxyJSON(w, out, err)
 }
 
+// CommunityStats proxies total + online user counts for the dashboard widget.
+func (h *Sync) CommunityStats(w http.ResponseWriter, r *http.Request) {
+	out, err := h.mgr.CommunityStats(r.Context())
+	proxyJSON(w, out, err)
+}
+
 // NotificationsRead proxies marking notifications read.
 func (h *Sync) NotificationsRead(w http.ResponseWriter, r *http.Request) {
 	out, err := h.mgr.NotificationsRead(r.Context())

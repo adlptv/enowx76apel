@@ -662,6 +662,12 @@ export const profileApi = {
   uploadBanner: (file: File) => uploadFile<{ banner_url: string }>("/api/profile/banner", file),
 };
 
+export type CommunityStats = { total_users: number; online_users: number };
+
+export const communityApi = {
+  stats: () => api.get<CommunityStats>("/api/community/stats"),
+};
+
 // uploadFile posts a single file as multipart/form-data. The server wraps
 // responses in { data, error }, so unwrap like req() does.
 async function uploadFile<T>(path: string, file: File): Promise<T> {

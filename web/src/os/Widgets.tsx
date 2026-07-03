@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Boxes,
   Activity,
   Plug,
   Server,
@@ -16,12 +15,13 @@ import {
   MessageCircle,
   BookOpen,
   ExternalLink,
+  Users,
 } from "lucide-react";
 import {
-  accountsApi,
   requestsApi,
   settingsApi,
-  type Account,
+  communityApi,
+  type CommunityStats,
   type RequestSummary,
   type Settings,
   type SeriesPoint,
@@ -50,24 +50,24 @@ function uptime(sec: number) {
 }
 
 export function Widgets({ onOpen }: { onOpen: (id: AppId) => void }) {
-  const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [summary, setSummary] = useState<RequestSummary | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [series, setSeries] = useState<SeriesPoint[]>([]);
   const [models, setModels] = useState<ModelStat[]>([]);
   const [healthy, setHealthy] = useState(true);
+  const [community, setCommunity] = useState<CommunityStats | null>(null);
   const { keys: keysData } = useKeys(); // shared store: stays in sync with the API Keys app
   const keys = keysData ?? [];
 
   useEffect(() => {
     let alive = true;
     const load = () => {
-      accountsApi.list().then((a) => alive && setAccounts(a ?? [])).catch(() => alive && setAccounts([]));
       requestsApi.summary().then((s) => alive && setSummary(s)).catch(() => {});
       requestsApi.series().then((s) => alive && setSeries(s ?? [])).catch(() => {});
       requestsApi.topModels().then((m) => alive && setModels(m ?? [])).catch(() => {});
       settingsApi.get().then((s) => alive && setSettings(s)).catch(() => {});
       fetch("/health").then((r) => alive && setHealthy(r.ok)).catch(() => alive && setHealthy(false));
+      communityApi.stats().then((s) => alive && setCommunity(s)).catch(() => {});
     };
     load();
     const id = setInterval(load, 10000);
@@ -80,7 +80,7 @@ export function Widgets({ onOpen }: { onOpen: (id: AppId) => void }) {
   return (
     <div className="pointer-events-auto h-full w-full">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PoolWidget accounts={accounts} onOpen={onOpen} />
+        <CommunityStatsWidget stats={community} onOpen={onOpen} />
         <ApiKeyWidget keys={keys} onOpen={onOpen} />
         <UsageWidget summary={summary} />
         <ThroughputWidget series={series} />
@@ -164,52 +164,37 @@ function Widget({
   );
 }
 
-function statusTone(status: string) {
-  switch (status) {
-    case "active":
-      return "text-emerald-300";
-    case "exhausted":
-      return "text-amber-300";
-    case "banned":
-      return "text-red-300";
-    default:
-      return "text-white/50";
+// compactNum shortens a count: 1000→1k, 12300→12.3k, 2000000→2M.
+function compactNum(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) {
+    const k = n / 1000;
+    return (k < 10 ? k.toFixed(1).replace(/\.0$/, "") : Math.round(k)) + "k";
   }
+  const m = n / 1_000_000;
+  return (m < 10 ? m.toFixed(1).replace(/\.0$/, "") : Math.round(m)) + "M";
 }
 
-function PoolWidget({ accounts, onOpen }: { accounts: Account[] | null; onOpen: (id: AppId) => void }) {
-  const byProvider: Record<string, Record<string, number>> = {};
-  let total = 0;
-  let active = 0;
-  let dead = 0;
-  for (const a of accounts ?? []) {
-    byProvider[a.provider] ??= {};
-    byProvider[a.provider][a.status] = (byProvider[a.provider][a.status] ?? 0) + 1;
-    total++;
-    if (a.status === "active") active++;
-    else if (a.status === "banned" || a.disabled) dead++;
-  }
-  const providers = Object.keys(byProvider);
-
+function CommunityStatsWidget({ stats, onOpen }: { stats: CommunityStats | null; onOpen: (id: AppId) => void }) {
   return (
-    <Widget icon={<Boxes />} title="Pool health" onOpen={() => onOpen("accounts")}>
-      {accounts === null ? (
+    <Widget icon={<Users />} title="Community" onOpen={() => onOpen("chat")}>
+      {stats === null ? (
         <Loading />
-      ) : total === 0 ? (
-        <p className="text-sm text-white/40">No accounts yet. Add one in Providers.</p>
       ) : (
-        <>
-          {/* Compact summary (no per-provider list) so the card stays small,
-              like the API key widget. Details live in the Accounts app. */}
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-semibold tabular-nums text-white">{active}</span>
-            <span className="text-xs text-white/40">/ {total} active</span>
+        <div className="flex items-stretch gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-2xl font-semibold tabular-nums text-white">{compactNum(stats.total_users)}</div>
+            <div className="mt-0.5 text-[11px] text-white/40">Total users</div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-            <span className="text-white/40">{providers.length} provider{providers.length === 1 ? "" : "s"}</span>
-            {dead > 0 && <span className={statusTone("banned")}>{dead} down</span>}
+          <div className="w-px shrink-0 bg-white/10" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="h-1.5 w-1.5 shrink-0 self-center rounded-full bg-emerald-400" />
+              <span className="text-2xl font-semibold tabular-nums text-emerald-300">{compactNum(stats.online_users)}</span>
+            </div>
+            <div className="mt-0.5 text-[11px] text-white/40">Online now</div>
           </div>
-        </>
+        </div>
       )}
     </Widget>
   );
