@@ -7,3 +7,4 @@ web/dist/
 /tmp/
 tmp/
 official-plugins/*/dist/
+dist/
