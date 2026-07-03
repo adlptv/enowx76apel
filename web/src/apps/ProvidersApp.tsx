@@ -20,21 +20,26 @@ export function ProvidersApp() {
   const [addingProvider, setAddingProvider] = useState(false);
   const dialog = useDialog();
 
-  async function load() {
-    try {
-      const [p, a] = await Promise.all([providersApi.list(), accountsApi.list()]);
-      setProviders(p);
-      setAccounts(a);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "failed to load");
-    } finally {
-      setLoading(false);
-    }
+  // Load providers and accounts independently: the provider list is small, so
+  // clear the skeleton as soon as it arrives instead of waiting on the (large)
+  // account list — accounts only feed the per-provider counts and can fill in
+  // after. An `alive` guard prevents a stale load from overwriting newer state.
+  async function load(alive: () => boolean = () => true) {
+    providersApi
+      .list()
+      .then((p) => { if (alive()) { setProviders(p); setError(""); } })
+      .catch((e) => { if (alive()) setError(e instanceof Error ? e.message : "failed to load"); })
+      .finally(() => { if (alive()) setLoading(false); });
+    accountsApi
+      .list()
+      .then((a) => { if (alive()) setAccounts(a ?? []); })
+      .catch(() => {});
   }
 
   useEffect(() => {
-    load();
+    let on = true;
+    load(() => on);
+    return () => { on = false; };
   }, []);
 
   const counts = useMemo(() => {

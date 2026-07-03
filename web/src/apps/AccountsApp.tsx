@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { shouldFlipUp } from "../components/Popover";
 import { Search, Trash2, Power, PowerOff, RefreshCw, Zap, Boxes, X, Copy, Check, Plus, Play, Loader2, MoreVertical, Download } from "lucide-react";
 import { AppShell } from "./shell";
@@ -35,42 +36,58 @@ export function AccountsApp() {
   const [modelsFor, setModelsFor] = useState<Account | null>(null);
   const dialog = useDialog();
 
-  async function load() {
+  async function load(alive: () => boolean = () => true) {
     try {
       const [a, p] = await Promise.all([accountsApi.list(), providersApi.list()]);
+      if (!alive()) return;
       setAccounts(a ?? []);
       setProviders(p ?? []);
       setError("");
-      // Lazily fetch credit usage for accounts whose provider supports it.
-      for (const acc of a ?? []) {
-        accountsApi
-          .usage(acc.id)
-          .then((r) => {
-            if (r.supported && r.usage && (r.usage.limit > 0 || (r.usage.windows?.length ?? 0) > 0)) {
-              setUsage((m) => ({ ...m, [acc.id]: r.usage! }));
-            }
-          })
-          .catch(() => {});
-      }
+      // NOTE: usage/credit is fetched lazily per *visible* row (ensureUsage),
+      // never for the whole pool at once — otherwise a big pool fires hundreds
+      // of upstream credit requests on open and grinds to a halt.
     } catch (e) {
+      if (!alive()) return;
       setError(e instanceof Error ? e.message : "failed to load");
       setAccounts([]);
     }
+  }
+
+  // ensureUsage fetches an account's credit usage once (cached in `usage`).
+  // Called by a row when it becomes visible.
+  const usageAsked = useRef<Set<number>>(new Set());
+  function ensureUsage(id: number) {
+    if (usageAsked.current.has(id)) return;
+    usageAsked.current.add(id);
+    accountsApi
+      .usage(id)
+      .then((r) => {
+        if (r.supported && r.usage && (r.usage.limit > 0 || (r.usage.windows?.length ?? 0) > 0)) {
+          setUsage((m) => ({ ...m, [id]: r.usage! }));
+        }
+      })
+      .catch(() => { usageAsked.current.delete(id); });
   }
 
   const accountsRef = useRef<Account[]>([]);
   useEffect(() => { accountsRef.current = accounts ?? []; }, [accounts]);
 
   useEffect(() => {
-    load();
+    let on = true;
+    load(() => on);
+    return () => { on = false; };
   }, []);
 
-  // Refetch usage for accounts (optionally scoped to one provider).
+  // Refetch usage only for accounts we've already shown usage for (the visible
+  // ones), not the whole pool — so a focus/stale event doesn't fire hundreds of
+  // upstream credit requests. Optionally scoped to one provider.
   const refreshUsage = (provider?: string) => {
-    for (const acc of accountsRef.current) {
-      if (provider && acc.provider !== provider) continue;
-      accountsApi.usage(acc.id).then((r) => {
-        if (r.supported && r.usage) setUsage((m) => ({ ...m, [acc.id]: r.usage! }));
+    const byId = new Map(accountsRef.current.map((a) => [a.id, a]));
+    for (const id of usageAsked.current) {
+      const acc = byId.get(id);
+      if (!acc || (provider && acc.provider !== provider)) continue;
+      accountsApi.usage(id).then((r) => {
+        if (r.supported && r.usage) setUsage((m) => ({ ...m, [id]: r.usage! }));
       }).catch(() => {});
     }
   };
@@ -106,6 +123,23 @@ export function AccountsApp() {
       return a.label.toLowerCase().includes(q) || a.provider.toLowerCase().includes(q);
     });
   }, [accounts, query, filter]);
+
+  // Virtualize the list: with a large pool we only render the visible rows.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowVirt = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 72, // rows vary; measureElement corrects it
+    overscan: 8,
+  });
+  const virtualRows = rowVirt.getVirtualItems();
+  // Fetch credit usage lazily, only for the rows currently in view.
+  useEffect(() => {
+    for (const vi of virtualRows) {
+      const a = filtered[vi.index];
+      if (a) ensureUsage(a.id);
+    }
+  }, [virtualRows, filtered]);
 
   async function act(fn: () => Promise<unknown>, id: number) {
     setBusy(id);
@@ -315,7 +349,7 @@ export function AccountsApp() {
             )}
           </div>
           <Tooltip label="Reload accounts" place="bottom">
-            <button onClick={load} disabled={!!warmAll} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-40">
+            <button onClick={() => load()} disabled={!!warmAll} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-40">
               <RefreshCw className="h-4 w-4" />
             </button>
           </Tooltip>
@@ -324,7 +358,7 @@ export function AccountsApp() {
         {error && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</div>}
         {notice && <div className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{notice}</div>}
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
           {accounts === null ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
@@ -336,10 +370,18 @@ export function AccountsApp() {
               {accounts.length === 0 ? "No accounts yet. Add one in Providers." : "No accounts match."}
             </div>
           ) : (
-            <div className="space-y-2">
-              {filtered.map((a) => (
+            <div className="relative w-full" style={{ height: rowVirt.getTotalSize() }}>
+              {virtualRows.map((vi) => {
+                const a = filtered[vi.index];
+                return (
                 <div
                   key={a.id}
+                  ref={rowVirt.measureElement}
+                  data-index={vi.index}
+                  className="absolute left-0 top-0 w-full pb-2"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                <div
                   className="group flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
                 >
                   <div className="relative shrink-0">
@@ -395,7 +437,9 @@ export function AccountsApp() {
                     />
                   </div>
                 </div>
-              ))}
+                </div>
+                );
+              })}
             </div>
           )}
         </div>
