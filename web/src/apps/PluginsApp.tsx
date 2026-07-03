@@ -39,7 +39,8 @@ export function PluginsApp() {
     load();
   }, []);
 
-  const runtimeOk = (id: string) => id === "static" || runtimes.find((r) => r.id === id)?.available;
+  // static + bin need no toolchain (bin ships prebuilt per-OS binaries).
+  const runtimeOk = (id: string) => id === "static" || id === "bin" || runtimes.find((r) => r.id === id)?.available;
 
   const act = async (fn: () => Promise<unknown>, id: string) => {
     setBusy(id);
