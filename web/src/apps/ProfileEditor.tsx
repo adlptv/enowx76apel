@@ -32,7 +32,7 @@ export function ProfileEditor() {
   const [uploading, setUploading] = useState("");
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
-  const canBanner = profile.has("profile.banner");
+  const canBanner = profile.has("cloud.sync.full"); // Premium unlocks banners
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -152,14 +152,14 @@ export function ProfileEditor() {
                     <button
                       onClick={() => canBanner && bannerInput.current?.click()}
                       disabled={!!uploading || !canBanner}
-                      title={canBanner ? "" : "Wear the [enow] tag to unlock banners"}
+                      title={canBanner ? "" : "Upgrade to Premium to set a banner"}
                       className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/5 disabled:opacity-50"
                     >
                       {uploading === "banner" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : canBanner ? <ImagePlus className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                       Banner
                     </button>
                   </div>
-                  {!canBanner && <p className="mt-1 text-[10px] text-white/35">Banner is a tag-gated perk (wear the [enow] server tag).</p>}
+                  {!canBanner && <p className="mt-1 text-[10px] text-white/35">A profile banner is a Premium perk.</p>}
                 </Field>
 
                 <Field label="Display name" hint={`${displayName.length}/${MAX_DISPLAY}`}>
